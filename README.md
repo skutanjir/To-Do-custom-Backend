@@ -1,128 +1,135 @@
-# TEST_WUDI Backend Infrastructure: Jarvis v13.0 AI Core and Task Management API
+# TEST_WUDI Backend Infrastructure: Enterprise AI Core and Task Management API
 
 ## Executive Summary
-This repository contains the enterprise-grade backend infrastructure for the TEST_WUDI ecosystem. It features the Jarvis v13.0 Neural Engine, a rule-based reasoning system with optional GPU acceleration via a Python sidecar. The system is built on Laravel 11 and provides high-concurrency API services for task management, team collaboration, and AI-driven productivity analysis.
+This repository contains the core backend infrastructure for the TEST_WUDI productivity ecosystem. The system is architected around the Jarvis v13.0 Neural Engine, a sophisticated hybrid reasoning system that combines pure PHP logic with local GPU-accelerated semantic processing. Built on Laravel 11, the infrastructure provides high-concurrency API services, advanced task lifecycle management, and a robust security framework for enterprise-grade productivity.
 
 ---
 
-## Core Technical Stack
+## Technical Architecture Overview
 
-| Component | Technology | Implementation Detail |
+### 1. The Neural Reasoning Pipeline (Jarvis v13.0)
+The backend implements a multi-stage NLP pipeline that processes natural language without external LLM dependencies:
+- Normalization Layer: Sanitizes input, resolves common abbreviations, and performs multi-dialect language detection (Indonesian, English, and regional dialects).
+- Contextual Resolution: Resolves anaphora and pronouns based on previous conversation turns and user personality data.
+- Semantic Weighted Scoring: An algorithm that ranks intent candidates based on keyword density, word boundaries, and historical context.
+- Expert Delegation: Dispatches queries to 19 specialized "Cognitive Experts" for domain-specific logic.
+- GPU Synthesis: High-dimensional vector embeddings are generated via a local Python sidecar for meaning-based task searching.
+
+### 2. The Expert Registry
+The system utilizes a modular expert architecture. Key components include:
+- StrategicPlannerExpert: Optimizes task sequencing using Eisenhower matrix principles.
+- MentalLoadExpert: Monitors user productivity density to provide burnout prevention insights.
+- ResearchExpert: A v13.0 addition that decomposes high-level goals into actionable task lists.
+- SystemIntegrityExpert: Performs real-time audits of task priorities and deadline consistency.
+- HabitEvolutionExpert: Analyzes recurring task patterns to suggest automated habit tracking.
+
+---
+
+## GPU Acceleration (Nebula Architecture)
+
+The backend utilizes the Nebula Architecture to leverage local Nvidia RTX hardware for high-performance neural processing.
+
+### Python Sidecar (gpu_sidecar.py)
+The sidecar is a FastAPI service that bridges the PHP environment to the GPU:
+- Model: all-MiniLM-L6-v2 (Transformer-based embeddings).
+- Hardware: Optimized for CUDA 13.0 and Nvidia RTX 3050+ hardware.
+- Functionality: Provides vector similarity searching and semantic intent mapping.
+
+---
+
+## Core Technology Stack
+
+| Component | Technology | implementation Detail |
 |-----------|------------|-----------------------|
-| Framework | Laravel 11.x | PHP 8.3 with Optimized JIT |
-| Database | PostgreSQL | Relational storage with composite indexing |
-| Cache/Queue | Redis | High-speed state management and session caching |
-| AI Reasoning | PHP Rule Engine | 19-Expert cognitive architecture |
-| AI Compute | Python FastAPI | RTX GPU bridging for vector embeddings |
-| Security | Laravel Sanctum | Stateful token-based authentication |
+| Framework | Laravel 11.x | PHP 8.3 with JIT optimization |
+| Database | PostgreSQL 15 | Relational storage with composite indexing |
+| AI Compute | Python / FastAPI | PyTorch + CUDA 13.0 |
+| Cache Layer | Redis 7 | High-speed intent and regex caching |
+| Auth System | Laravel Sanctum | Stateful session and token management |
+| Real-time | SSE (Server-Sent Events) | Streaming AI responses for low-latency feedback |
 
 ---
 
-## AI Architecture: Jarvis v13.0 (Nebula)
+## API Interaction Specification
 
-The backend implements a unique "Hybrid Intelligence" model that prioritizes local execution over external APIs.
-
-### 1. The Expert Registry
-Jarvis decomposes user queries into specialized domain tasks handled by dedicated classes:
-- StrategicPlannerExpert: Workload balancing and task sequencing logic.
-- HealthVitalityExpert: Mental load monitoring and burnout prevention telemetry.
-- SystemIntegrityExpert: Automated data auditing and priority collision detection.
-- ResearchExpert: Productivity-focused knowledge synthesis for task decomposition.
-
-### 2. GPU Accelerated Semantic Search
-The `gpu_sidecar.py` service bridges the PHP environment to local Nvidia RTX hardware. It utilizes the `all-MiniLM-L6-v2` model to generate high-dimensional vector embeddings, enabling semantic search capabilities that go beyond simple keyword matching.
-
----
-
-## API Specification and Interaction Map
-
-### Authentication and Identity
+### Authentication
 | Method | Endpoint | Description | Security |
 |--------|----------|-------------|----------|
-| POST | /api/register | User account creation | Public |
-| POST | /api/login | Token generation | Public |
-| GET | /api/user | Current identity profile | Sanctum Auth |
-
-### Task Management (CRUD)
-| Method | Endpoint | Description | Constraints |
-|--------|----------|-------------|-------------|
-| GET | /api/todos | Retrieve task repository | Owner/Team Only |
-| POST | /api/todos | Create task record | Validated Input |
-| PUT | /api/todos/{id} | Modify existing task | Ownership Check |
-| DELETE | /api/todos/{id} | Permanent removal | Ownership Check |
+| POST | /api/register | Account creation and device migration | Public |
+| POST | /api/login | Bearer token generation | Public |
+| POST | /api/logout | Session termination | Authenticated |
 
 ### AI and Intelligence Hub
 | Method | Endpoint | Description | Features |
 |--------|----------|-------------|----------|
-| POST | /api/ai/chat | Main reasoning dispatcher | Multi-intent support |
-| GET | /api/ai/experts/insights | Expert telemetry data | Real-time analytics |
-| POST | /api/ai/compute-mode | Toggle CPU/GPU processing | Hardware check |
+| POST | /api/ai/chat | Main intelligence dispatcher | Multi-intent parsing |
+| POST | /api/ai/stream | SSE-based response streaming | Real-time chunks |
+| GET | /api/ai/experts/insights | Expert telemetry and reports | JSON analytics |
+| POST | /api/ai/voice-preference | TTS and Voice behavior settings | Personality sync |
+
+### Task Repository (CRUD)
+| Method | Endpoint | Description | Auth Level |
+|--------|----------|-------------|------------|
+| GET | /api/todos | Fetch task list with team merge | Device/User |
+| POST | /api/todos | Persistent task creation | Validated |
+| PUT | /api/todos/{id} | Update task metadata | Ownership verified |
+| DELETE | /api/todos/{id} | Soft/Hard task removal | Ownership verified |
 
 ---
 
-## Technical Installation and Setup
+## Installation and Environment Configuration
 
-### System Prerequisites
+### Prerequisites
 - PHP 8.3 or higher
 - Composer 2.x
 - PostgreSQL 15+
 - Redis 7+
-- Python 3.10+ (For GPU acceleration)
+- Python 3.10+ (Required for GPU mode)
+- Nvidia Driver 530+ with CUDA support
 
-### Deployment Steps
-
-1. Environment Configuration
-Clone the repository and prepare the environment:
+### Backend Setup
+1. Clone the repository and install dependencies:
 ```bash
-cp .env.example .env
-```
-Configure your database and hardware settings in the `.env` file:
-```text
-DB_CONNECTION=pgsql
-AI_COMPUTE_DEVICE=gpu # or cpu
-GPU_SIDECAR_URL=http://127.0.0.1:8080
-```
-
-2. Dependency Acquisition
-Install the Laravel framework and its ecosystem:
-```bash
+git clone https://github.com/skutanjir/To-Do-custom-Backend.git
+cd To-Do-custom-Backend
 composer install
 ```
-
-3. Database Initialization
-Run the optimized migrations including performance indices:
+2. Configure environment variables:
+Copy .env.example to .env and configure database credentials and the GPU endpoint:
+```text
+DB_CONNECTION=pgsql
+AI_COMPUTE_DEVICE=gpu
+GPU_SIDECAR_URL=http://127.0.0.1:8080
+```
+3. Initialize the database:
 ```bash
 php artisan migrate
 ```
 
-4. GPU Sidecar Activation (Optional)
-If using an Nvidia RTX card, install Python dependencies and launch the bridge:
+### GPU Sidecar Activation
+1. Install Python neural processing requirements:
 ```bash
 pip install torch sentence-transformers fastapi uvicorn pydantic
+```
+2. Launch the sidecar:
+```bash
 python gpu_sidecar.py
 ```
 
 ---
 
-## Engineering Optimization Standards
+## Performance and Security Standards
 
-### Database Performance
-The system utilizes composite indices to optimize the most frequent queries:
-- `(user_id, is_completed)`: Enables sub-millisecond filtering of active tasks.
-- `(team_id)`: Accelerates collaborative workload retrieval.
+### Database Optimization
+The system is optimized for high-volume task data through:
+- Indexing: Composite indices on (user_id, is_completed) and (team_id).
+- Eager Loading: Standardized use of with() and withCount() to prevent N+1 query overhead.
 
-### AI Efficiency
-- Semantic Thesaurus Caching: Expanded keyword mappings are cached to prevent redundant loops.
-- Regex Compilation Cache: All intent patterns are pre-compiled and stored in a static registry to reduce CPU overhead per request.
-
----
-
-## Security Protocols
-- IDOR Prevention: Centralized `verifyOwnership` logic ensures data isolation between users and teams.
-- Domain Firewall: The Research AI includes an internal classifier to block prompts outside the productivity and task management scope.
-- Mass Assignment Protection: Strict `$fillable` and `$request->only` constraints prevent unauthorized attribute modification.
+### Security Implementation
+- IDOR Prevention: A centralized verification layer ensures that task access is strictly bound to the authenticated user or their authorized team members.
+- Domain Guard: The AI engine features a "Firewall" expert that rejects prompts attempting to access data outside the task management context.
 
 ---
 
-## License
-Proprietary implementation. Distributed under the MIT License terms.
+## License and Terms
+This backend software is proprietary. Distribution or modification requires explicit authorization under the MIT License terms.
