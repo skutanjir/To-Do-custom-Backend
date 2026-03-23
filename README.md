@@ -73,14 +73,15 @@ php artisan migrate
 ```
 
 ### 2. Python Sidecar Deployment
-Install the neural processing requirements for the Python sidecar:
+Navigate to the AI engine directory and install the neural processing requirements for the Python sidecar:
 ```bash
-pip install torch sentence-transformers fastapi uvicorn pydantic
+cd ai_engine
+pip install -r requirements.txt
 ```
 
 Launch the FastAPI service:
 ```bash
-python gpu_sidecar.py
+python main.py
 ```
 
 ### 3. Mobile Client Integration Setup
