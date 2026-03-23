@@ -56,7 +56,7 @@ class SystemIntegrityExpert implements ExpertInterface
         ];
     }
 
-    // ── Scoring ───────────────────────────────────────────────────
+    //  Scoring 
 
     private function scoreSystemIntent(string $msg): int
     {
@@ -93,7 +93,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ($topScores[$best] > 0) ? $best : 'status';
     }
 
-    // ── System Status ────────────────────────────────────────────
+    //  System Status 
 
     private function systemStatus(array $context, string $lang, string $userName, Carbon $now): array
     {
@@ -123,7 +123,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Version Info ─────────────────────────────────────────────
+    //  Version Info 
 
     private function versionInfo(string $lang, string $userName): array
     {
@@ -163,7 +163,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Capability List ──────────────────────────────────────────
+    //  Capability List 
 
     private function capabilityList(string $lang, string $userName): array
     {
@@ -199,7 +199,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Self Diagnostic ──────────────────────────────────────────
+    //  Self Diagnostic 
 
     private function selfDiagnostic(array $context, string $lang, string $userName, Carbon $now): array
     {
@@ -259,7 +259,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Identity Report ──────────────────────────────────────────
+    //  Identity Report 
 
     private function identityReport(string $lang, string $userName): array
     {
@@ -267,13 +267,13 @@ class SystemIntegrityExpert implements ExpertInterface
         if ($lang === 'en') {
             $findings[] = "I am **Jarvis**, {$userName}'s personal AI assistant.";
             $findings[] = "Engine: Local AI Engine v" . self::ENGINE_VERSION . " (" . self::ENGINE_CODENAME . ")";
-            $findings[] = "I run entirely on pure logic — no external LLM, no cloud AI, no API tokens.";
+            $findings[] = "I run entirely on pure logic  no external LLM, no cloud AI, no API tokens.";
             $findings[] = "My purpose: Keep you organized, productive, and healthy.";
             $findings[] = "I learn from our conversations and adapt to your preferences over time.";
         } else {
             $findings[] = "Saya adalah **Jarvis**, asisten AI pribadi {$userName}.";
             $findings[] = "Engine: Local AI Engine v" . self::ENGINE_VERSION . " (" . self::ENGINE_CODENAME . ")";
-            $findings[] = "Saya berjalan sepenuhnya dengan logika murni — tanpa LLM eksternal, tanpa cloud AI, tanpa token API.";
+            $findings[] = "Saya berjalan sepenuhnya dengan logika murni  tanpa LLM eksternal, tanpa cloud AI, tanpa token API.";
             $findings[] = "Tujuan saya: Menjaga Anda tetap teratur, produktif, dan sehat.";
             $findings[] = "Saya belajar dari percakapan kita dan beradaptasi dengan preferensi Anda seiring waktu.";
         }
@@ -285,7 +285,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Uptime Report ────────────────────────────────────────────
+    //  Uptime Report 
 
     private function uptimeReport(string $lang, string $userName, Carbon $now): array
     {
@@ -315,7 +315,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Performance Report ───────────────────────────────────────
+    //  Performance Report 
 
     private function performanceReport(array $context, string $lang, string $userName): array
     {
@@ -329,14 +329,14 @@ class SystemIntegrityExpert implements ExpertInterface
             $findings[] = "Processing model: Pure Rule-Based NLP (zero latency to external services)";
             $findings[] = "Tasks in context: {$taskCount}";
             $findings[] = "Estimated response time: <100ms (local processing)";
-            $findings[] = "All reasoning runs locally — your data never leaves your server, {$userName}.";
+            $findings[] = "All reasoning runs locally  your data never leaves your server, {$userName}.";
         } else {
             $findings[] = "**Laporan Performa:**";
             $findings[] = "Perangkat komputasi: {$device}";
             $findings[] = "Model pemrosesan: NLP Berbasis Aturan Murni (tanpa latensi ke layanan eksternal)";
             $findings[] = "Tugas dalam konteks: {$taskCount}";
             $findings[] = "Estimasi waktu respons: <100ms (pemrosesan lokal)";
-            $findings[] = "Semua penalaran berjalan lokal — data Anda tidak pernah meninggalkan server, {$userName}.";
+            $findings[] = "Semua penalaran berjalan lokal  data Anda tidak pernah meninggalkan server, {$userName}.";
         }
 
         $suggestions = $lang === 'en'
@@ -346,7 +346,7 @@ class SystemIntegrityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Mood Report (When user asks "how are you") ───────────────
+    //  Mood Report (When user asks "how are you") 
 
     private function moodReport(string $lang, string $userName, Carbon $now): array
     {

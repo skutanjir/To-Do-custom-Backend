@@ -117,19 +117,19 @@ class ConversationalExpert implements ExpertInterface
     private function getJoke(string $lang, string $userName, string $seed): string
     {
         $jokes = [
-            ['id' => "Kenapa programmer suka gelap? Karena mereka nggak suka bug yang bercahaya! 😄", 'en' => "Why do programmers prefer dark mode? Because light attracts bugs! 😄"],
-            ['id' => "Apa bedanya kopi dan motivasi? Kopi bisa dibeli, motivasi harus dicari sendiri! ☕", 'en' => "What's the difference between coffee and motivation? Coffee can be bought, motivation you have to find yourself! ☕"],
-            ['id' => "Kenapa komputer tidak pernah lapar? Karena sudah punya banyak bytes! 💻", 'en' => "Why are computers never hungry? Because they already have plenty of bytes! 💻"],
-            ['id' => "Kenapa semut nggak pernah sakit? Karena mereka punya anti-body! 🐜", 'en' => "Why do ants never get sick? Because they have tiny ant-ibodies! 🐜"],
-            ['id' => "Apa bedanya kucing dan koding? Kucing punya 9 nyawa, koding punya 9 error! 🐱", 'en' => "What's the difference between a cat and coding? A cat has 9 lives, coding has 9 errors! 🐱"],
-            ['id' => "Kenapa pensil tidak punya teman? Karena dia terlalu tajam! ✏️", 'en' => "Why doesn't the pencil have friends? Because it's too sharp! ✏️"],
-            ['id' => "Apa yang terjadi kalau kamu makan jam? Kamu akan buang waktu! ⏰", 'en' => "What happens if you eat a clock? You'll be wasting time! ⏰"],
-            ['id' => "Kenapa ikan nggak pernah lulus ujian? Karena selalu di bawah C (sea)! 🐟", 'en' => "Why do fish never pass exams? They're always below C (sea) level! 🐟"],
-            ['id' => "Kenapa robot tidak pernah sedih? Karena mereka sudah di-program untuk bahagia! 🤖", 'en' => "Why are robots never sad? They're programmed to be happy! 🤖"],
-            ['id' => "Kenapa pohon tidak bisa pakai komputer? Karena takut log out! 🌳", 'en' => "Why can't trees use computers? They're afraid to log out! 🌳"],
+            ['id' => "Kenapa programmer suka gelap? Karena mereka nggak suka bug yang bercahaya! ", 'en' => "Why do programmers prefer dark mode? Because light attracts bugs! "],
+            ['id' => "Apa bedanya kopi dan motivasi? Kopi bisa dibeli, motivasi harus dicari sendiri! ", 'en' => "What's the difference between coffee and motivation? Coffee can be bought, motivation you have to find yourself! "],
+            ['id' => "Kenapa komputer tidak pernah lapar? Karena sudah punya banyak bytes! ", 'en' => "Why are computers never hungry? Because they already have plenty of bytes! "],
+            ['id' => "Kenapa semut nggak pernah sakit? Karena mereka punya anti-body! ", 'en' => "Why do ants never get sick? Because they have tiny ant-ibodies! "],
+            ['id' => "Apa bedanya kucing dan koding? Kucing punya 9 nyawa, koding punya 9 error! ", 'en' => "What's the difference between a cat and coding? A cat has 9 lives, coding has 9 errors! "],
+            ['id' => "Kenapa pensil tidak punya teman? Karena dia terlalu tajam! ", 'en' => "Why doesn't the pencil have friends? Because it's too sharp! "],
+            ['id' => "Apa yang terjadi kalau kamu makan jam? Kamu akan buang waktu! ", 'en' => "What happens if you eat a clock? You'll be wasting time! "],
+            ['id' => "Kenapa ikan nggak pernah lulus ujian? Karena selalu di bawah C (sea)! ", 'en' => "Why do fish never pass exams? They're always below C (sea) level! "],
+            ['id' => "Kenapa robot tidak pernah sedih? Karena mereka sudah di-program untuk bahagia! ", 'en' => "Why are robots never sad? They're programmed to be happy! "],
+            ['id' => "Kenapa pohon tidak bisa pakai komputer? Karena takut log out! ", 'en' => "Why can't trees use computers? They're afraid to log out! "],
         ];
         $j = $this->pick($jokes, $seed);
-        return ($lang === 'en' ? $j['en'] : $j['id']) . " — Khusus untuk {$userName}.";
+        return ($lang === 'en' ? $j['en'] : $j['id']) . "  Khusus untuk {$userName}.";
     }
 
     private function getStory(string $lang, string $userName, string $seed): string
@@ -185,9 +185,9 @@ class ConversationalExpert implements ExpertInterface
     private function getTrivia(string $lang, string $userName, string $seed): string
     {
         $facts = [
-            ['id' => "Tahukah Anda? Otak manusia menghasilkan listrik yang cukup untuk menyalakan lampu bohlam kecil! 💡", 'en' => "Did you know? The human brain generates enough electricity to power a small lightbulb! 💡"],
-            ['id' => "Fakta unik: Madu adalah satu-satunya makanan yang tidak pernah basi. Arkeolog menemukan madu berusia 3000 tahun yang masih bisa dimakan! 🍯", 'en' => "Fun fact: Honey is the only food that never spoils. Archaeologists found 3,000-year-old honey that is still edible! 🍯"],
-            ['id' => "Di luar angkasa, astronot bisa bertambah tinggi hingga 5 cm karena tulang belakang mereka meregang tanpa gravitasi! 👩‍🚀", 'en' => "In space, astronauts can grow up to 2 inches taller because their spines stretch without gravity! 👩‍🚀"],
+            ['id' => "Tahukah Anda? Otak manusia menghasilkan listrik yang cukup untuk menyalakan lampu bohlam kecil! ", 'en' => "Did you know? The human brain generates enough electricity to power a small lightbulb! "],
+            ['id' => "Fakta unik: Madu adalah satu-satunya makanan yang tidak pernah basi. Arkeolog menemukan madu berusia 3000 tahun yang masih bisa dimakan! ", 'en' => "Fun fact: Honey is the only food that never spoils. Archaeologists found 3,000-year-old honey that is still edible! "],
+            ['id' => "Di luar angkasa, astronot bisa bertambah tinggi hingga 5 cm karena tulang belakang mereka meregang tanpa gravitasi! ", 'en' => "In space, astronauts can grow up to 2 inches taller because their spines stretch without gravity! "],
         ];
         $f = $this->pick($facts, $seed);
         return $lang === 'en' ? $f['en'] : $f['id'];
@@ -204,7 +204,7 @@ class ConversationalExpert implements ExpertInterface
     private function getMotivation(string $lang, string $userName, string $seed): string
     {
         $quotes = [
-            ['id' => "Jangan berhenti saat lelah, berhentilah saat selesai! 💪", 'en' => "Don't stop when you're tired, stop when you're done! 💪"],
+            ['id' => "Jangan berhenti saat lelah, berhentilah saat selesai! ", 'en' => "Don't stop when you're tired, stop when you're done! "],
             ['id' => "Satu langkah kecil hari ini adalah awal dari ribuan kilometer kesuksesan, {$userName}.", 'en' => "One small step today is the beginning of a thousand miles of success, {$userName}."],
         ];
         $q = $this->pick($quotes, $seed);
@@ -219,15 +219,15 @@ class ConversationalExpert implements ExpertInterface
         , $lang);
     }
 
-    private function getWeather(string $l, string $u, string $s): string { return $this->t("Saya tidak punya sensor cuaca langsung, tapi saya harap hari Anda cerah, {$u}! ☀️", "I don't have direct weather sensors, but I hope your day is bright, {$u}! ☀️", $l); }
-    private function getFood(string $l, string $u, string $s): string { return $this->t("Bicara soal makanan selalu menyenangkan, {$u}. Jangan lupa makan yang bergizi agar tetap fokus! 🍎", "Talking about food is always fun, {$u}. Don't forget to eat nutritiously to stay focused! 🍎", $l); }
+    private function getWeather(string $l, string $u, string $s): string { return $this->t("Saya tidak punya sensor cuaca langsung, tapi saya harap hari Anda cerah, {$u}! ", "I don't have direct weather sensors, but I hope your day is bright, {$u}! ", $l); }
+    private function getFood(string $l, string $u, string $s): string { return $this->t("Bicara soal makanan selalu menyenangkan, {$u}. Jangan lupa makan yang bergizi agar tetap fokus! ", "Talking about food is always fun, {$u}. Don't forget to eat nutritiously to stay focused! ", $l); }
     private function getEntertainment(string $l, string $u, string $s): string { return $this->t("Hiburan adalah kunci keseimbangan, {$u}. Apa film atau musik favorit Anda akhir-akhir ini?", "Entertainment is the key to balance, {$u}. What's your favorite movie or music lately?", $l); }
     private function getOpinion(string $l, string $u, string $s): string { return $this->t("Menurut logika saya, perspektif yang berbeda itu penting, {$u}. Saya ingin mendengar pendapat Anda dulu.", "In my logic, different perspectives are important, {$u}. I'd like to hear your opinion first.", $l); }
     private function getDreams(string $l, string $u, string $s): string { return $this->t("Mimpi adalah cetak biru masa depan, {$u}. Teruslah melangkah menuju impian Anda!", "Dreams are blueprints of the future, {$u}. Keep moving toward your aspirations!", $l); }
     private function getRelationship(string $l, string $u, string $s): string { return $this->t("Hubungan manusia itu kompleks namun indah, {$u}. Komunikasi adalah kuncinya.", "Human relationships are complex yet beautiful, {$u}. Communication is the key.", $l); }
     private function getHobbies(string $l, string $u, string $s): string { return $this->t("Hobi membuat hidup lebih berwarna, {$u}. Apa yang paling Anda nikmati saat waktu luang?", "Hobbies make life colorful, {$u}. What do you enjoy most in your free time?", $l); }
     private function getDailyLife(string $l, string $u, string $s): string { return $this->t("Setiap hari adalah kesempatan baru, {$u}. Mari kita buat hari ini produktif!", "Every day is a new opportunity, {$u}. Let's make today productive!", $l); }
-    private function getGratitude(string $l, string $u, string $s): string { return $this->t("Sama-sama, {$u}! Senang bisa membantu Anda. 🌟", "You're welcome, {$u}! Happy to help you. 🌟", $l); }
+    private function getGratitude(string $l, string $u, string $s): string { return $this->t("Sama-sama, {$u}! Senang bisa membantu Anda. ", "You're welcome, {$u}! Happy to help you. ", $l); }
     private function getCompliment(string $l, string $u, string $s): string { return $this->t("Terima kasih, {$u}! Anda juga luar biasa karena terus berusaha memberikan yang terbaik.", "Thank you, {$u}! You are also amazing for constantly striving to do your best.", $l); }
 
     private function generateSuggestions(string $topic, string $lang): array

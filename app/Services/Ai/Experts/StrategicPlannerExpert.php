@@ -99,7 +99,7 @@ class StrategicPlannerExpert implements ExpertInterface
         ];
     }
 
-    // ── Scoring ───────────────────────────────────────────────────
+    //  Scoring 
 
     private function scorePlanningIntent(string $msg): int
     {
@@ -134,7 +134,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ($topScores[$best] > 0) ? $best : 'strategy';
     }
 
-    // ── Eisenhower Matrix ────────────────────────────────────────
+    //  Eisenhower Matrix 
 
     private function analyzeEisenhower(array $tasks, string $lang, string $userName): array
     {
@@ -195,7 +195,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Time Block Generator ─────────────────────────────────────
+    //  Time Block Generator 
 
     private function generateTimeBlocks(array $tasks, Carbon $now, string $lang, string $userName): array
     {
@@ -250,7 +250,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Weekly Plan Analysis ─────────────────────────────────────
+    //  Weekly Plan Analysis 
 
     private function weeklyPlanAnalysis(array $tasks, Carbon $now, string $lang, string $userName): array
     {
@@ -312,7 +312,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Workload Balance ─────────────────────────────────────────
+    //  Workload Balance 
 
     private function workloadBalance(array $tasks, string $lang, string $userName): array
     {
@@ -369,7 +369,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ['findings' => $findings, 'actions' => $actions, 'suggestions' => $suggestions];
     }
 
-    // ── Goal Strategy ────────────────────────────────────────────
+    //  Goal Strategy 
 
     private function goalStrategy(array $tasks, string $lang, string $userName): array
     {
@@ -406,7 +406,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Delegation Advice ────────────────────────────────────────
+    //  Delegation Advice 
 
     private function delegationAdvice(array $tasks, string $lang, string $userName): array
     {
@@ -439,7 +439,7 @@ class StrategicPlannerExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── General Strategy ─────────────────────────────────────────
+    //  General Strategy 
 
     private function generalStrategy(array $tasks, string $lang, string $userName): array
     {

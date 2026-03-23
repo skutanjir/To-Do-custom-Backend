@@ -85,7 +85,7 @@ class HealthVitalityExpert implements ExpertInterface
         ];
     }
 
-    // ── Scoring ───────────────────────────────────────────────────
+    //  Scoring 
 
     private function scoreHealthIntent(string $msg): int
     {
@@ -120,7 +120,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ($topScores[$best] > 0) ? $best : 'general';
     }
 
-    // ── Proactive Health Check ───────────────────────────────────
+    //  Proactive Health Check 
 
     private function proactiveHealthCheck(Carbon $now, string $lang, string $userName): ?string
     {
@@ -143,7 +143,7 @@ class HealthVitalityExpert implements ExpertInterface
         return null;
     }
 
-    // ── Break Reminder ───────────────────────────────────────────
+    //  Break Reminder 
 
     private function breakReminder(Carbon $now, string $lang, string $userName): array
     {
@@ -165,7 +165,7 @@ class HealthVitalityExpert implements ExpertInterface
         } else {
             $findings[] = "**Pengingat Istirahat untuk {$userName}:**";
             $findings[] = "Aturan 52-17: Kerja 52 menit, istirahat 17 menit.";
-            $findings[] = "Alternatif: Pomodoro — kerja 25 menit + istirahat 5 menit.";
+            $findings[] = "Alternatif: Pomodoro  kerja 25 menit + istirahat 5 menit.";
 
             if ($hour >= 12 && $hour <= 13) {
                 $findings[] = "Waktunya makan siang! Pastikan makan yang bergizi.";
@@ -183,7 +183,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Posture Advice ───────────────────────────────────────────
+    //  Posture Advice 
 
     private function postureAdvice(string $lang, string $userName): array
     {
@@ -194,7 +194,7 @@ class HealthVitalityExpert implements ExpertInterface
             $findings[] = "2. Feet flat on the floor, knees at 90 degrees";
             $findings[] = "3. Shoulders relaxed, not hunched";
             $findings[] = "4. Lower back supported (use a cushion if needed)";
-            $findings[] = "5. Wrists neutral when typing — not bent up or down";
+            $findings[] = "5. Wrists neutral when typing  not bent up or down";
             $findings[] = "Set a reminder to check posture every 30 minutes.";
         } else {
             $findings[] = "**Panduan Postur untuk {$userName}:**";
@@ -213,7 +213,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Hydration Tracker ────────────────────────────────────────
+    //  Hydration Tracker 
 
     private function hydrationTracker(Carbon $now, string $lang, string $userName): array
     {
@@ -243,7 +243,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Sleep Advice ─────────────────────────────────────────────
+    //  Sleep Advice 
 
     private function sleepAdvice(Carbon $now, string $lang, string $userName): array
     {
@@ -285,7 +285,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Screen Time Advice ───────────────────────────────────────
+    //  Screen Time Advice 
 
     private function screenTimeAdvice(Carbon $now, string $lang, string $userName): array
     {
@@ -311,7 +311,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Exercise Reminder ────────────────────────────────────────
+    //  Exercise Reminder 
 
     private function exerciseReminder(string $lang, string $userName): array
     {
@@ -349,7 +349,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Stress Management ────────────────────────────────────────
+    //  Stress Management 
 
     private function stressManagement(string $lang, string $userName): array
     {
@@ -357,14 +357,14 @@ class HealthVitalityExpert implements ExpertInterface
         if ($lang === 'en') {
             $findings[] = "**Stress Management for {$userName}:**";
             $findings[] = "1. Box Breathing: Inhale 4s → Hold 4s → Exhale 4s → Hold 4s. Repeat 4 cycles.";
-            $findings[] = "2. Brain dump: Write down everything on your mind — don't organize, just dump.";
+            $findings[] = "2. Brain dump: Write down everything on your mind  don't organize, just dump.";
             $findings[] = "3. The 2-minute rule: If it takes less than 2 minutes, do it now.";
             $findings[] = "4. Progressive muscle relaxation: Tense each muscle group 5s, then release.";
             $findings[] = "Remember: Stress is a signal, not an identity. You're doing your best.";
         } else {
             $findings[] = "**Manajemen Stres untuk {$userName}:**";
             $findings[] = "1. Box Breathing: Tarik napas 4d → Tahan 4d → Buang 4d → Tahan 4d. Ulangi 4 siklus.";
-            $findings[] = "2. Brain dump: Tulis semua yang ada di pikiran — jangan diatur, tulis saja.";
+            $findings[] = "2. Brain dump: Tulis semua yang ada di pikiran  jangan diatur, tulis saja.";
             $findings[] = "3. Aturan 2 menit: Jika butuh kurang dari 2 menit, kerjakan sekarang.";
             $findings[] = "4. Relaksasi otot progresif: Tegangkan tiap otot 5 detik, lalu lepas.";
             $findings[] = "Ingat: Stres adalah sinyal, bukan identitas. Anda sudah melakukan yang terbaik.";
@@ -377,7 +377,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── Nutrition Advice ─────────────────────────────────────────
+    //  Nutrition Advice 
 
     private function nutritionAdvice(Carbon $now, string $lang, string $userName): array
     {
@@ -421,7 +421,7 @@ class HealthVitalityExpert implements ExpertInterface
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }
 
-    // ── General Health ───────────────────────────────────────────
+    //  General Health 
 
     private function generalHealth(Carbon $now, string $lang, string $userName): array
     {

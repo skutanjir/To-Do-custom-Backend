@@ -159,8 +159,8 @@ class TranslationExpert implements ExpertInterface
         }
 
         $findings[] = $lang === 'en'
-            ? "🌐 I can help with translations and language! Try:\n• Translate words/phrases (ID↔EN)\n• Synonyms and antonyms\n• Idioms and proverbs\n• Javanese/Sundanese phrases\n• Language learning tips\n\nExample: 'translate terima kasih' or 'synonym of beautiful'"
-            : "🌐 Saya bisa membantu terjemahan dan bahasa! Coba:\n• Terjemahkan kata/frasa (ID↔EN)\n• Sinonim dan antonim\n• Idiom dan peribahasa\n• Frasa Jawa/Sunda\n• Tips belajar bahasa\n\nContoh: 'terjemahkan thank you' atau 'sinonim cantik'";
+            ? " I can help with translations and language! Try:\n Translate words/phrases (IDEN)\n Synonyms and antonyms\n Idioms and proverbs\n Javanese/Sundanese phrases\n Language learning tips\n\nExample: 'translate terima kasih' or 'synonym of beautiful'"
+            : " Saya bisa membantu terjemahan dan bahasa! Coba:\n Terjemahkan kata/frasa (IDEN)\n Sinonim dan antonim\n Idiom dan peribahasa\n Frasa Jawa/Sunda\n Tips belajar bahasa\n\nContoh: 'terjemahkan thank you' atau 'sinonim cantik'";
         $suggestions = $lang === 'en' ? ['Translate', 'Synonyms', 'Idioms'] : ['Terjemahkan', 'Sinonim', 'Idiom'];
 
         return [
@@ -215,10 +215,10 @@ class TranslationExpert implements ExpertInterface
         $reverseDictionary = array_flip($this->dictionary);
 
         if (isset($this->dictionary[$lower])) {
-            return "🌐 **{$text}** (ID) → **{$this->dictionary[$lower]}** (EN)";
+            return " **{$text}** (ID) → **{$this->dictionary[$lower]}** (EN)";
         }
         if (isset($reverseDictionary[$lower])) {
-            return "🌐 **{$text}** (EN) → **{$reverseDictionary[$lower]}** (ID)";
+            return " **{$text}** (EN) → **{$reverseDictionary[$lower]}** (ID)";
         }
 
         $idResult = $this->translateIdToEn($text);
@@ -236,13 +236,13 @@ class TranslationExpert implements ExpertInterface
             $translated = $isId ? $this->dictionary[$closest] : $reverseDictionary[$closest];
             $direction = $isId ? "(ID) → **{$translated}** (EN)" : "(EN) → **{$translated}** (ID)";
             return $lang === 'en'
-                ? "🌐 Did you mean **{$closest}**? {$closest} {$direction}"
-                : "🌐 Mungkin maksud Anda **{$closest}**? {$closest} {$direction}";
+                ? " Did you mean **{$closest}**? {$closest} {$direction}"
+                : " Mungkin maksud Anda **{$closest}**? {$closest} {$direction}";
         }
 
         return $lang === 'en'
-            ? "🌐 Sorry, '{$text}' is not in my dictionary yet. Try common words or phrases!"
-            : "🌐 Maaf, '{$text}' belum ada di kamus saya. Coba kata atau frasa umum!";
+            ? " Sorry, '{$text}' is not in my dictionary yet. Try common words or phrases!"
+            : " Maaf, '{$text}' belum ada di kamus saya. Coba kata atau frasa umum!";
     }
 
     private function translateIdToEn(string $text): ?string
@@ -265,7 +265,7 @@ class TranslationExpert implements ExpertInterface
 
         $translated = implode(' ', $results);
         $note = $allFound ? '' : "\n_(Words in [brackets] are not in dictionary)_";
-        return "🌐 **ID → EN**:\n\"{$text}\" → \"{$translated}\"{$note}";
+        return " **ID → EN**:\n\"{$text}\" → \"{$translated}\"{$note}";
     }
 
     private function translateEnToId(string $text): ?string
@@ -289,7 +289,7 @@ class TranslationExpert implements ExpertInterface
 
         $translated = implode(' ', $results);
         $note = $allFound ? '' : "\n_(Words in [brackets] are not in dictionary)_";
-        return "🌐 **EN → ID**:\n\"{$text}\" → \"{$translated}\"{$note}";
+        return " **EN → ID**:\n\"{$text}\" → \"{$translated}\"{$note}";
     }
 
     private function findClosestWord(string $input): ?string
@@ -344,12 +344,12 @@ class TranslationExpert implements ExpertInterface
         $lower = mb_strtolower($word);
         if (isset($synonyms[$lower])) {
             $list = implode(', ', $synonyms[$lower]);
-            return "📖 **" . ($lang === 'en' ? "Synonyms" : "Sinonim") . " '{$word}'**: {$list}";
+            return " **" . ($lang === 'en' ? "Synonyms" : "Sinonim") . " '{$word}'**: {$list}";
         }
 
         return $lang === 'en'
-            ? "📖 Sorry, I don't have synonyms for '{$word}' in my database. Try common words like: beautiful, happy, sad, big, small, fast, smart."
-            : "📖 Maaf, saya belum punya sinonim untuk '{$word}'. Coba kata umum seperti: cantik, senang, sedih, besar, kecil, cepat, pintar.";
+            ? " Sorry, I don't have synonyms for '{$word}' in my database. Try common words like: beautiful, happy, sad, big, small, fast, smart."
+            : " Maaf, saya belum punya sinonim untuk '{$word}'. Coba kata umum seperti: cantik, senang, sedih, besar, kecil, cepat, pintar.";
     }
 
     private function tryAntonym(string $msg, string $lang): ?string
@@ -374,17 +374,17 @@ class TranslationExpert implements ExpertInterface
 
         $lower = mb_strtolower($word);
         if (isset($antonyms[$lower])) {
-            return "📖 **" . ($lang === 'en' ? "Antonym" : "Antonim") . " '{$word}'**: {$antonyms[$lower]}";
+            return " **" . ($lang === 'en' ? "Antonym" : "Antonim") . " '{$word}'**: {$antonyms[$lower]}";
         }
 
         $flipped = array_flip($antonyms);
         if (isset($flipped[$lower])) {
-            return "📖 **" . ($lang === 'en' ? "Antonym" : "Antonim") . " '{$word}'**: {$flipped[$lower]}";
+            return " **" . ($lang === 'en' ? "Antonym" : "Antonim") . " '{$word}'**: {$flipped[$lower]}";
         }
 
         return $lang === 'en'
-            ? "📖 Sorry, I don't have antonyms for '{$word}'. Try: big, hot, fast, happy, good, strong, rich, new."
-            : "📖 Maaf, saya belum punya antonim untuk '{$word}'. Coba: besar, panas, cepat, senang, baik, kuat, kaya, baru.";
+            ? " Sorry, I don't have antonyms for '{$word}'. Try: big, hot, fast, happy, good, strong, rich, new."
+            : " Maaf, saya belum punya antonim untuk '{$word}'. Coba: besar, panas, cepat, senang, baik, kuat, kaya, baru.";
     }
 
     private function tryIdiom(string $msg, string $lang): ?string
@@ -410,8 +410,8 @@ class TranslationExpert implements ExpertInterface
 
         $pick = $idioms[array_rand($idioms)];
         return $lang === 'en'
-            ? "📚 **Idiom/Proverb**:\n\n🇮🇩 \"{$pick['idiom']}\"\n💡 Meaning: {$pick['meaning_en']}\n🇬🇧 English equivalent: \"{$pick['equivalent']}\""
-            : "📚 **Idiom/Peribahasa**:\n\n🇮🇩 \"{$pick['idiom']}\"\n💡 Arti: {$pick['meaning_id']}\n🇬🇧 Padanan Inggris: \"{$pick['equivalent']}\"";
+            ? " **Idiom/Proverb**:\n\n \"{$pick['idiom']}\"\n Meaning: {$pick['meaning_en']}\n English equivalent: \"{$pick['equivalent']}\""
+            : " **Idiom/Peribahasa**:\n\n \"{$pick['idiom']}\"\n Arti: {$pick['meaning_id']}\n Padanan Inggris: \"{$pick['equivalent']}\"";
     }
 
     private function tryJavanese(string $msg, string $lang): ?string
@@ -421,14 +421,14 @@ class TranslationExpert implements ExpertInterface
         }
 
         $lines = [];
-        $lines[] = $lang === 'en' ? "🏛️ **Common Javanese Phrases**:\n" : "🏛️ **Frasa Umum Bahasa Jawa**:\n";
+        $lines[] = $lang === 'en' ? " **Common Javanese Phrases**:\n" : " **Frasa Umum Bahasa Jawa**:\n";
 
         $sample = array_rand($this->javanese, min(8, count($this->javanese)));
         if (!is_array($sample)) $sample = [$sample];
 
         foreach ($sample as $jv) {
             $id = $this->javanese[$jv];
-            $lines[] = "• **{$jv}** → {$id}";
+            $lines[] = " **{$jv}** → {$id}";
         }
 
         return implode("\n", $lines);
@@ -441,14 +441,14 @@ class TranslationExpert implements ExpertInterface
         }
 
         $lines = [];
-        $lines[] = $lang === 'en' ? "🏛️ **Common Sundanese Phrases**:\n" : "🏛️ **Frasa Umum Bahasa Sunda**:\n";
+        $lines[] = $lang === 'en' ? " **Common Sundanese Phrases**:\n" : " **Frasa Umum Bahasa Sunda**:\n";
 
         $sample = array_rand($this->sundanese, min(8, count($this->sundanese)));
         if (!is_array($sample)) $sample = [$sample];
 
         foreach ($sample as $sd) {
             $id = $this->sundanese[$sd];
-            $lines[] = "• **{$sd}** → {$id}";
+            $lines[] = " **{$sd}** → {$id}";
         }
 
         return implode("\n", $lines);
@@ -461,7 +461,7 @@ class TranslationExpert implements ExpertInterface
         }
 
         return $lang === 'en'
-            ? "📚 **Language Learning Tips**:\n\n1. **Immersion**: Surround yourself with the language (music, movies, podcasts)\n2. **Flashcards**: Use spaced repetition (Anki app)\n3. **Daily Practice**: Even 15 min/day makes a huge difference\n4. **Speak Early**: Don't wait until 'perfect' — practice speaking from day 1\n5. **Label Things**: Put sticky notes on objects with their names\n6. **Think in the Language**: Try narrating daily activities\n7. **Find a Partner**: Language exchange with native speakers\n8. **Read**: Start with children's books, then progress\n9. **Write**: Keep a journal in the target language\n10. **Be Patient**: Fluency takes time — enjoy the journey!\n\n🎯 Consistency beats intensity. 15 min daily > 2 hours weekly!"
-            : "📚 **Tips Belajar Bahasa**:\n\n1. **Immersion**: Kelilingi diri dengan bahasa target (musik, film, podcast)\n2. **Flashcard**: Gunakan spaced repetition (aplikasi Anki)\n3. **Latihan Harian**: Bahkan 15 menit/hari sudah membuat perbedaan besar\n4. **Bicara Sejak Awal**: Jangan tunggu sempurna — latihan bicara dari hari pertama\n5. **Label Benda**: Tempel sticky note pada benda dengan namanya\n6. **Berpikir dalam Bahasa Target**: Coba narasi kegiatan harian\n7. **Cari Partner**: Tukar bahasa dengan penutur asli\n8. **Baca**: Mulai dari buku anak-anak, lalu bertahap\n9. **Tulis**: Buat jurnal dalam bahasa target\n10. **Sabar**: Kefasihan butuh waktu — nikmati prosesnya!\n\n🎯 Konsistensi mengalahkan intensitas. 15 menit/hari > 2 jam/minggu!";
+            ? " **Language Learning Tips**:\n\n1. **Immersion**: Surround yourself with the language (music, movies, podcasts)\n2. **Flashcards**: Use spaced repetition (Anki app)\n3. **Daily Practice**: Even 15 min/day makes a huge difference\n4. **Speak Early**: Don't wait until 'perfect'  practice speaking from day 1\n5. **Label Things**: Put sticky notes on objects with their names\n6. **Think in the Language**: Try narrating daily activities\n7. **Find a Partner**: Language exchange with native speakers\n8. **Read**: Start with children's books, then progress\n9. **Write**: Keep a journal in the target language\n10. **Be Patient**: Fluency takes time  enjoy the journey!\n\n Consistency beats intensity. 15 min daily > 2 hours weekly!"
+            : " **Tips Belajar Bahasa**:\n\n1. **Immersion**: Kelilingi diri dengan bahasa target (musik, film, podcast)\n2. **Flashcard**: Gunakan spaced repetition (aplikasi Anki)\n3. **Latihan Harian**: Bahkan 15 menit/hari sudah membuat perbedaan besar\n4. **Bicara Sejak Awal**: Jangan tunggu sempurna  latihan bicara dari hari pertama\n5. **Label Benda**: Tempel sticky note pada benda dengan namanya\n6. **Berpikir dalam Bahasa Target**: Coba narasi kegiatan harian\n7. **Cari Partner**: Tukar bahasa dengan penutur asli\n8. **Baca**: Mulai dari buku anak-anak, lalu bertahap\n9. **Tulis**: Buat jurnal dalam bahasa target\n10. **Sabar**: Kefasihan butuh waktu  nikmati prosesnya!\n\n Konsistensi mengalahkan intensitas. 15 menit/hari > 2 jam/minggu!";
     }
 }

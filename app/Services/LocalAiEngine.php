@@ -15,15 +15,15 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * ╔══════════════════════════════════════════════════════════════════════╗
- * ║            L O C A L   A I   E N G I N E   v13.0                   ║
- * ║      G P U   A C C E L E R A T E D   (N V I D I A   R T X)         ║
- * ║                                                                      ║
- * ║   v13.0 New Features:                                                ║
- * ║   - RTX GPU Acceleration (CUDA 13.0)                                 ║
- * ║   - Semantic Task Search (Vector Embeddings)                         ║
- * ║   - Domain-Restricted AI Web Search (Todo Only)                      ║
- * ╚══════════════════════════════════════════════════════════════════════╝
+ * 
+ *             L O C A L   A I   E N G I N E   v13.0                   
+ *       G P U   A C C E L E R A T E D   (N V I D I A   R T X)         
+ *                                                                       
+ *    v13.0 New Features:                                                
+ *    - RTX GPU Acceleration (CUDA 13.0)                                 
+ *    - Semantic Task Search (Vector Embeddings)                         
+ *    - Domain-Restricted AI Web Search (Todo Only)                      
+ * 
  */
 class LocalAiEngine
 {
@@ -47,10 +47,10 @@ class LocalAiEngine
     private array $communicationStyle = [];  
     private array $thoughtChain = [];        
 
-    // ── Intent confidence threshold (0-100). Below this → fallback to external AI
+    //  Intent confidence threshold (0-100). Below this → fallback to external AI
     private const CONFIDENCE_THRESHOLD = 35;
 
-    // ── Levenshtein tolerance for typo correction (max edit distance)
+    //  Levenshtein tolerance for typo correction (max edit distance)
     private const TYPO_TOLERANCE = 3;
 
     public function __construct($todos = null, ?string $userName = null, array $context = [], ?AiMemoryService $memory = null, bool $voiceMode = false)
@@ -85,7 +85,15 @@ class LocalAiEngine
 
         $this->knowledgeBase = new KnowledgeBaseService();
         
+        // v13.0: Set GPU Endpoint from ENV if available
+        $this->gpuEndpoint = env('GPU_SIDECAR_URL', 'http://127.0.0.1:8080');
+        
         $this->checkGpuAvailability();
+
+        // Manual override from ENV if needed
+        if (env('AI_COMPUTE_DEVICE') === 'gpu' && $this->computeDevice === 'cpu') {
+            $this->computeDevice = 'gpu'; // Force GPU if user insists
+        }
 
         // Load personality from memory
         if ($memory) {
@@ -103,14 +111,24 @@ class LocalAiEngine
     private function checkGpuAvailability(): void
     {
         try {
-            $response = Http::timeout(1)->get("{$this->gpuEndpoint}/status");
+            // Meningkatkan timeout ke 3 detik dan mencoba 127.0.0.1
+            $response = Http::timeout(3)->get("{$this->gpuEndpoint}/status");
+            
             if ($response->successful()) {
                 $data = $response->json();
+                Log::info("Jarvis GPU Heartbeat: ", $data);
+                
+                // Cek apakah device adalah 'cuda' (GPU Aktif)
                 if (($data['device'] ?? '') === 'cuda') {
                     $this->computeDevice = 'gpu';
+                } else {
+                    $this->computeDevice = 'cpu';
                 }
+            } else {
+                $this->computeDevice = 'cpu';
             }
         } catch (\Exception $e) {
+            Log::warning("Jarvis GPU Sidecar tidak terdeteksi di {$this->gpuEndpoint}. Berpindah ke mode CPU.");
             $this->computeDevice = 'cpu';
         }
     }
@@ -120,9 +138,9 @@ class LocalAiEngine
         return $this->expertManager;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // MAIN DISPATCHER — Confidence-scored intent ranking
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // MAIN DISPATCHER  Confidence-scored intent ranking
+    // 
 
     public function handle(string $message): ?array
     {
@@ -134,30 +152,44 @@ class LocalAiEngine
         $msg        = $linguistic->normalize($message);
         $this->lang = $linguistic->detectLanguage($msg, $message);
 
-        // ── v12.1: Input validation — reject emoji-only or meaningless input ─
+        // v13.2: Check for Hard Cancel FIRST before anything else
+        if ($this->isCancel($msg)) {
+            $sessions = ['creating_task_state', 'editing_task_state', 'deleting_task_state', 'listing_task_state'];
+            $active = false;
+            foreach ($sessions as $s) {
+                if ($this->memory && $this->memory->recall('context', $s)) {
+                    $this->memory->forget('context', $s);
+                    $active = true;
+                }
+            }
+            if ($active) {
+                return $this->respond($this->t(
+                    "Baik Tuan, sesi dibatalkan. Ada lagi yang bisa saya bantu?",
+                    "Alright Sir, session cancelled. Is there anything else I can help with?"
+                ));
+            }
+        }
+
+        // v12.1: Input validation  reject emoji-only or meaningless input 
         $stripped = preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{27BF}\x{FE00}-\x{FE0F}\x{200D}\x{20E3}\x{E0020}-\x{E007F}\x{1F1E0}-\x{1F1FF}]/u', '', $message);
         $stripped = trim(preg_replace('/\s+/', '', $stripped));
         if (mb_strlen($stripped) < 2) {
-            return $this->respond($this->lang === 'en'
-                ? "I didn't quite catch that. Could you type a clearer command? 😊"
-                : "Maaf, saya tidak memahami input tersebut. Coba ketik perintah yang lebih jelas? 😊",
+            return $this->respond($this->t(
+                "Maaf, saya tidak memahami input tersebut. Coba ketik perintah yang lebih jelas? ",
+                "I didn't quite catch that. Could you type a clearer command? "
+            ),
                 null, ['help', 'lihat tugas', 'buat tugas']
             );
         }
 
-        // ── Resolve context-dependent references ────────────────────
+        //  Resolve context-dependent references 
         $msg = $this->resolveContextualRefs($msg, $message);
 
-        // ── v12.0: Track Communication Style ────────────────────────
+        //  v12.0: Track Communication Style 
         $this->trackCommunicationStyle($message);
 
-        // ── v12.0: Multi-Intent Detection ───────────────────────────
-        $subCommands = $this->detectMultiIntent($msg, $message);
-        if (count($subCommands) > 1) {
-            return $this->processMultiIntent($subCommands, $message);
-        }
-
-        // ── Conversational Flow (Task Creation Wizard) ──────────────
+        //  Conversational Flow (Task Creation Wizard) 
+        //  v13.2: Force Wizard Precedence  If in a session, bypass multi-intent and regular intents
         $flow = $this->handleConversationalFlow($msg, $message);
         if ($flow !== null) {
             $decoded = json_decode($flow['content'] ?? '{}', true);
@@ -169,14 +201,20 @@ class LocalAiEngine
             return $flow;
         }
 
-        // ── Load Memory Context (Facts & Previous Patterns) ──────────
+        //  v12.0: Multi-Intent Detection 
+        $subCommands = $this->detectMultiIntent($msg, $message);
+        if (count($subCommands) > 1) {
+            return $this->processMultiIntent($subCommands, $message);
+        }
+
+        //  Load Memory Context (Facts & Previous Patterns) 
         $facts = $this->memory ? $this->memory->getAllFacts() : [];
         $memContext = [
             'facts' => collect($facts)->pluck('value.data', 'key')->toArray(),
             'personality' => $this->personality,
         ];
 
-        // ── Build User Context for Reasoning (HARDENED) ─────────────
+        //  Build User Context for Reasoning (HARDENED) 
         $context = [
             'user'  => $this->userName,
             'lang'  => $this->lang,
@@ -195,13 +233,13 @@ class LocalAiEngine
             'memory'  => $memContext,
         ];
 
-        // ── Custom Reasoning Loop (v9.0) ────────────────────────────
+        //  Custom Reasoning Loop (v9.0) 
         $reasoning = $this->expertManager->reason($msg, $context);
 
-        // ── v12.0: Build Chain-of-Thought for complex queries ───────
+        //  v12.0: Build Chain-of-Thought for complex queries 
         $chainOfThought = $this->buildChainOfThought($msg, $context, $reasoning);
 
-        // ── Build scored intent map (v12.0 Semantic Weighted) ───────
+        //  Build scored intent map (v12.0 Semantic Weighted) 
         $intents = $this->scoreIntents($msg, $message);
         arsort($intents);
 
@@ -210,17 +248,17 @@ class LocalAiEngine
             if ($confidence < self::CONFIDENCE_THRESHOLD) break;
             $result = $this->dispatchIntent($intent, $msg, $message, $confidence);
             if ($result !== null) {
-                // ── Enrichment Layer (v12.0 Enhanced) ───────────────
+                //  Enrichment Layer (v12.0 Enhanced) 
                 $decoded = json_decode($result['content'] ?? '{}', true);
 
                 // Adapt response tone to user's style
-                if (!empty($decoded['message'])) {
+                if (isset($decoded['message'])) {
                     $decoded['message'] = $this->adaptResponseTone($decoded['message']);
                 }
 
                 if (!empty($reasoning['findings']) && !$this->voiceMode) {
-                    $findingText = "\n\n💡 Insights: " . implode(" ", array_slice($reasoning['findings'], 0, 2));
-                    $decoded['message'] .= $findingText;
+                    $findingText = "\n\n Insights: " . implode(" ", array_slice($reasoning['findings'], 0, 2));
+                    $decoded['message'] = ($decoded['message'] ?? '') . $findingText;
                 }
                 $decoded['quickReplies'] = array_slice(array_unique(array_merge(
                     $decoded['quickReplies'] ?? [],
@@ -239,7 +277,7 @@ class LocalAiEngine
             }
         }
 
-        // ── Delegate to Enterprise Intent Manager ──────────────────
+        //  Delegate to Enterprise Intent Manager 
         $enterpriseResult = $manager->handle($msg, $context);
         if ($enterpriseResult && ($enterpriseResult['intent'] ?? '') !== 'unknown') {
             $decoded = json_decode($enterpriseResult['content'] ?? '{}', true);
@@ -251,7 +289,7 @@ class LocalAiEngine
             return $enterpriseResult;
         }
 
-        // ── 3. Expert Findings Fallback (v10.0 Enhanced) ─────────────
+        //  3. Expert Findings Fallback (v10.0 Enhanced) 
         if (!empty($reasoning['findings']) && ($reasoning['confidence'] ?? 0) >= 25) {
             return $this->respond(
                 implode("\n\n", $reasoning['findings']),
@@ -260,7 +298,7 @@ class LocalAiEngine
             );
         }
 
-        // ── v12.1: Self-Correction Suggestion Layer ──────────────────
+        //  v12.1: Self-Correction Suggestion Layer 
         reset($intents);
         $bestIntent = key($intents);
         $bestScore  = current($intents);
@@ -284,8 +322,8 @@ class LocalAiEngine
             }
         }
 
-        // ── 4. Conversational Fallback ─────────────────────────────
-        return $this->handleGeneralConversationalChat($message, $context);
+        //  4. Conversational Fallback 
+        return $this->respondGeneralChat($message);
     }
 
     /**
@@ -321,25 +359,25 @@ class LocalAiEngine
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // INTENT SCORING ENGINE
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function scoreIntents(string $msg, string $original): array
     {
         $scores = [];
 
-        // ── Memory intents (highest priority — user managing AI memory) ──
+        //  Memory intents (highest priority  user managing AI memory) 
         $scores['remember_preference'] = $this->scoreRememberPreference($msg);
         $scores['recall_memory']       = $this->scoreRecallMemory($msg);
         $scores['forget_memory']       = $this->scoreForgetMemory($msg);
         $scores['conversation_summary']= $this->scoreConversationSummary($msg);
         $scores['memory_stats']        = $this->scoreMemoryStats($msg);
 
-        // ── Greetings ─────────────────────────────────────────────
+        //  Greetings 
         $scores['greeting']          = $this->scoreGreeting($msg);
 
-        // ── CRUD ──────────────────────────────────────────────────
+        //  CRUD 
         $scores['multi_create']      = $this->scoreMultiCreate($msg);
         $scores['create']            = $this->scoreCreate($msg);
         $scores['update_deadline']   = $this->scoreUpdateDeadline($msg);
@@ -350,13 +388,13 @@ class LocalAiEngine
         $scores['bulk_op']           = $this->scoreBulkOp($msg);
         $scores['batch_update']      = $this->scoreBatchUpdate($msg);
 
-        // ── Viewing ───────────────────────────────────────────────
+        //  Viewing 
         $scores['filtered_list']     = $this->scoreFilteredList($msg);
         $scores['list']              = $this->scoreList($msg);
         $scores['search']            = $this->scoreSearch($msg);
         $scores['schedule']          = $this->scoreSchedule($msg);
 
-        // ── Analytics ─────────────────────────────────────────────
+        //  Analytics 
         $scores['stats']             = $this->scoreStats($msg);
         $scores['productivity']      = $this->scoreProductivity($msg);
         $scores['weekly_review']     = $this->scoreWeeklyReview($msg);
@@ -365,13 +403,13 @@ class LocalAiEngine
         $scores['eisenhower']        = $this->scoreEisenhower($msg);
         $scores['streak']            = $this->scoreStreak($msg);
 
-        // ── Planning ──────────────────────────────────────────────
+        //  Planning 
         $scores['focus_mode']        = $this->scoreFocusMode($msg);
         $scores['daily_planner']     = $this->scoreDailyPlanner($msg);
         $scores['deep_work']         = $this->scoreDeepWork($msg);
         $scores['pomodoro']          = $this->scorePomodoro($msg);
 
-        // ── Smart Features ────────────────────────────────────────
+        //  Smart Features 
         $scores['smart_suggest']     = $this->scoreSmartSuggest($msg);
         $scores['smart_prioritize']  = $this->scoreSmartPrioritize($msg);
         $scores['habit']             = $this->scoreHabit($msg);
@@ -379,25 +417,25 @@ class LocalAiEngine
         $scores['reminder']          = $this->scoreReminder($msg);
         $scores['reschedule_overdue']= $this->scoreRescheduleOverdue($msg);
 
-        // ── Goals ─────────────────────────────────────────────────
+        //  Goals 
         $scores['set_goal']          = $this->scoreSetGoal($msg);
         $scores['check_goal']        = $this->scoreCheckGoal($msg);
 
-        // ── Misc ──────────────────────────────────────────────────
+        //  Misc 
         $scores['identity']          = $this->scoreIdentity($msg);
         $scores['help']              = $this->scoreHelp($msg);
         $scores['motivation']        = $this->scoreMotivation($msg);
         $scores['emotion']           = $this->scoreEmotion($msg);
         $scores['general_chat']      = $this->scoreGeneralChat($msg);
 
-        // ── Memory intents (additional) ─────────────────────────────
+        //  Memory intents (additional) 
         $scores['teach_ai']            = $this->scoreTeachAi($msg);
         $scores['switch_language']      = $this->scoreSwitchLanguage($msg);
 
-        // ── Learned patterns from memory (boost matching intents) ─
+        //  Learned patterns from memory (boost matching intents) 
         $scores = $this->applyLearnedPatterns($msg, $scores);
 
-        // ── v12.0: Semantic Weighted Confidence Boosting ─────────────
+        //  v12.0: Semantic Weighted Confidence Boosting 
         // Apply position-weighted and context-history boosting on top of legacy scores
         $scores = $this->applySemanticWeighting($msg, $scores);
 
@@ -514,7 +552,7 @@ class LocalAiEngine
             'help'              => $this->respondHelp(),
             'motivation'        => $this->respondMotivation(),
             'emotion'           => $this->respondEmotion($msg),
-            // ── Memory intents ──────────────────────────────────
+            //  Memory intents 
             'remember_preference' => $this->respondRememberPreference($msg, $original),
             'recall_memory'       => $this->respondRecallMemory($msg),
             'forget_memory'       => $this->respondForgetMemory($msg),
@@ -544,8 +582,8 @@ class LocalAiEngine
 
         if ($this->matchesAny($msg, ['makasih','thanks','thank you','suwun','nuhun'])) {
             return $this->respond($this->t(
-                "Sama-sama, {$this->userName}! Sudah menjadi tugas saya. Semangat terus ya! 💪",
-                "You're very welcome, {$this->userName}! Just doing my duty. Keep up the great work! 💪"
+                "Sama-sama, {$this->userName}! Sudah menjadi tugas saya. Semangat terus ya! ",
+                "You're very welcome, {$this->userName}! Just doing my duty. Keep up the great work! "
             ));
         }
 
@@ -566,9 +604,9 @@ class LocalAiEngine
         ));
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // SENTIMENT ANALYSIS — lightweight keyword-based
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // SENTIMENT ANALYSIS  lightweight keyword-based
+    // 
 
     /**
      * Analyze sentiment of message.
@@ -616,9 +654,9 @@ class LocalAiEngine
         return $variants[abs($hash) % count($variants)];
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // SCORING FUNCTIONS — return 0-100
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // SCORING FUNCTIONS  return 0-100
+    // 
 
     private function scoreGreeting(string $msg): int
     {
@@ -909,9 +947,9 @@ class LocalAiEngine
         return $this->matchesAny($msg, $patterns) ? 30 : 5;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // FALLBACK FOR UNKNOWN INTENTS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     /**
      * Fallback for free-form conversation when no specific task intent is matched.
@@ -926,7 +964,7 @@ class LocalAiEngine
         $sentiment = $this->analyzeSentiment($msg);
         $facts = $context['memory']['facts'] ?? [];
         
-        // ── 1. Personalized Contextual Responses ─────────────────────
+        //  1. Personalized Contextual Responses 
         if (str_contains($msg, 'siapa saya') || str_contains($msg, 'tentang saya')) {
             $name = $this->memory ? $this->memory->getNickname() : null;
             $interests = $this->memory ? $this->memory->recallFact('interests') : null;
@@ -947,7 +985,7 @@ class LocalAiEngine
             ), null, ['help', 'motivation']);
         }
 
-        // ── 2. Productivity Consultation ─────────────────────────────
+        //  2. Productivity Consultation 
         if (str_contains($msg, 'tips') || str_contains($msg, 'saran') || str_contains($msg, 'nasihat')) {
             $tips = [
                 "Cobalah teknik Pomodoro untuk konsentrasi tinggi.",
@@ -962,7 +1000,7 @@ class LocalAiEngine
             ), null, ['daily_planner', 'pomodoro']);
         }
 
-        // ── 3. Learning (Fact Extraction) ───────────────────────────
+        //  3. Learning (Fact Extraction) 
         if (str_contains($msg, 'saya suka') || str_contains($msg, 'ingat bahwa')) {
             $extracted = preg_replace('/\b(saya suka|ingat bahwa|ingat|saya|bahwa)\b/i', '', $message);
             $extracted = trim($extracted, ' ,.!');
@@ -975,7 +1013,7 @@ class LocalAiEngine
             }
         }
 
-        // ── 4. General Social / Small Talk ───────────────────────────
+        //  4. General Social / Small Talk 
         if ($sentiment['polarity'] === 'positive' && (str_contains($msg, 'bagus') || str_contains($msg, 'terima kasih'))) {
             $resp = $this->t(
                 "Sama-sama, Tuan. Senang bisa melayani Anda. Apa ada hal lain yang bisa saya bantu?",
@@ -1121,9 +1159,9 @@ class LocalAiEngine
         return array_values($matches);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // CONTEXT RESOLUTION — "yang itu", "yang tadi", ordinal refs
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // CONTEXT RESOLUTION  "yang itu", "yang tadi", ordinal refs
+    // 
 
     private function resolveContextualRefs(string $msg, string $original): string
     {
@@ -1140,8 +1178,9 @@ class LocalAiEngine
                 $pending = $this->todos->where('is_completed', false)->values();
                 if ($pending->count() > $index) {
                     $task = $pending[$index];
-                    // Replace ordinal reference with task title
-                    $msg = preg_replace('/\b(' . $pattern . ')\b/i', $task->judul, $msg);
+                    // Replace ordinal reference with task title (escape replacement to prevent regex issues)
+                    $safeTitle = preg_quote($task->judul, '/');
+                    $msg = preg_replace('/\b(' . $pattern . ')\b/i', str_replace('$', '\\$', $task->judul), $msg);
                 }
                 break;
             }
@@ -1157,7 +1196,7 @@ class LocalAiEngine
             }
         }
 
-        // ── v12.0: Advanced Pronoun Resolution (Deep Anaphora) ──────
+        //  v12.0: Advanced Pronoun Resolution (Deep Anaphora) 
         // "dia" / "he" / "she" / "it" → resolve to last referenced task
         if (preg_match('/\b(dia|he|she|it|nya|his|her|its|tugasnya|tasknya)\b/i', $msg)) {
             $lastTask = $this->resolveLastReferencedTask();
@@ -1262,9 +1301,9 @@ class LocalAiEngine
         return [];
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // v12.0: MULTI-INTENT DETECTION & PROCESSING
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     /**
      * Detect if a message contains multiple independent commands.
@@ -1284,7 +1323,7 @@ class LocalAiEngine
             return [$msg];
         }
 
-        // Split on compound conjunctions — but only when they connect action verbs
+        // Split on compound conjunctions  but only when they connect action verbs
         $actionVerbs = 'buat|bikin|tambah|hapus|delete|remove|ubah|ganti|update|selesai|tandai|toggle|mark|create|add|make|lihat|show|list|cari|search|find';
         
         // Pattern: "action1 ... (dan|lalu|terus|kemudian|then|and|also) action2 ..."
@@ -1316,8 +1355,8 @@ class LocalAiEngine
     {
         $this->thoughtChain = [];
         $this->thoughtChain[] = $this->t(
-            "🧠 Terdeteksi " . count($subCommands) . " perintah dalam satu pesan",
-            "🧠 Detected " . count($subCommands) . " commands in one message"
+            " Terdeteksi " . count($subCommands) . " perintah dalam satu pesan",
+            " Detected " . count($subCommands) . " commands in one message"
         );
 
         $results = [];
@@ -1362,8 +1401,8 @@ class LocalAiEngine
 
             if (!$processed) {
                 $allMessages[] = $this->t(
-                    "⚠️ Tidak bisa memproses: \"{$cmd}\"",
-                    "⚠️ Could not process: \"{$cmd}\""
+                    " Tidak bisa memproses: \"{$cmd}\"",
+                    " Could not process: \"{$cmd}\""
                 );
                 $results[] = [
                     'intent' => 'unknown',
@@ -1375,7 +1414,7 @@ class LocalAiEngine
         }
 
         // Combine all messages
-        $combinedMessage = $this->t("📋 Hasil multi-perintah:\n\n", "📋 Multi-command results:\n\n");
+        $combinedMessage = $this->t(" Hasil multi-perintah:\n\n", " Multi-command results:\n\n");
         foreach ($allMessages as $i => $m) {
             $combinedMessage .= ($i + 1) . ". " . $m . "\n\n";
         }
@@ -1389,9 +1428,9 @@ class LocalAiEngine
         ]);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // v12.0: CHAIN-OF-THOUGHT SIMULATION
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     /**
      * Build chain-of-thought reasoning for complex queries.
@@ -1403,8 +1442,8 @@ class LocalAiEngine
 
         // Step 1: Language detection
         $steps[] = $this->t(
-            "1️⃣ Bahasa terdeteksi: " . strtoupper($this->lang),
-            "1️⃣ Language detected: " . strtoupper($this->lang)
+            "1 Bahasa terdeteksi: " . strtoupper($this->lang),
+            "1 Language detected: " . strtoupper($this->lang)
         );
 
         // Step 2: Intent classification
@@ -1416,24 +1455,24 @@ class LocalAiEngine
             if ($score > 0) $intentSummary[] = "{$intent}({$score}%)";
         }
         $steps[] = $this->t(
-            "2️⃣ Klasifikasi intent: " . (implode(', ', $intentSummary) ?: 'umum'),
-            "2️⃣ Intent classification: " . (implode(', ', $intentSummary) ?: 'general')
+            "2 Klasifikasi intent: " . (implode(', ', $intentSummary) ?: 'umum'),
+            "2 Intent classification: " . (implode(', ', $intentSummary) ?: 'general')
         );
 
         // Step 3: Context awareness
         $taskCount = $this->todos->count();
         $pendingCount = $this->todos->where('is_completed', false)->count();
         $steps[] = $this->t(
-            "3️⃣ Konteks: {$taskCount} tugas ({$pendingCount} aktif)",
-            "3️⃣ Context: {$taskCount} tasks ({$pendingCount} active)"
+            "3 Konteks: {$taskCount} tugas ({$pendingCount} aktif)",
+            "3 Context: {$taskCount} tasks ({$pendingCount} active)"
         );
 
         // Step 4: Expert consultation
         if (!empty($reasoning['reasoning_path'])) {
             $experts = implode(', ', array_slice($reasoning['reasoning_path'], 0, 3));
             $steps[] = $this->t(
-                "4️⃣ Pakar dikonsultasi: {$experts}",
-                "4️⃣ Experts consulted: {$experts}"
+                "4 Pakar dikonsultasi: {$experts}",
+                "4 Experts consulted: {$experts}"
             );
         }
 
@@ -1444,16 +1483,16 @@ class LocalAiEngine
                     ($topScore >= 35 ? $this->t('Mempertimbangkan', 'Considering') :
                     $this->t('Eksplorasi', 'Exploring')));
         $steps[] = $this->t(
-            "5️⃣ Tingkat keyakinan: {$confLabel} ({$topScore}%)",
-            "5️⃣ Confidence level: {$confLabel} ({$topScore}%)"
+            "5 Tingkat keyakinan: {$confLabel} ({$topScore}%)",
+            "5 Confidence level: {$confLabel} ({$topScore}%)"
         );
 
         return $steps;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // v12.0: PERSONALITY ADAPTATION — User Style Mirroring
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // v12.0: PERSONALITY ADAPTATION  User Style Mirroring
+    // 
 
     /**
      * Track user's communication style from their messages.
@@ -1463,7 +1502,7 @@ class LocalAiEngine
     {
         $style = &$this->communicationStyle;
 
-        // ── Formality detection ─────────────────────────────────────
+        //  Formality detection 
         $formalMarkers = ['tolong', 'mohon', 'silakan', 'please', 'could you', 'would you', 'kindly', 'apakah', 'bisakah', 'Anda'];
         $informalMarkers = ['dong', 'deh', 'nih', 'sih', 'lah', 'kek', 'cuy', 'bro', 'woi', 'gue', 'lu', 'gw', 'lo', 'wkwk', 'haha', 'lol', 'btw', 'guys'];
 
@@ -1484,16 +1523,16 @@ class LocalAiEngine
             $style['formal_score'] = max(0, ($style['formal_score'] ?? 50) - 5);
         }
 
-        // ── Verbosity detection ─────────────────────────────────────
+        //  Verbosity detection 
         $wordCount = str_word_count($message);
         $style['avg_words'] = (($style['avg_words'] ?? $wordCount) + $wordCount) / 2;
         $style['verbosity'] = $style['avg_words'] > 15 ? 'verbose' : ($style['avg_words'] < 5 ? 'terse' : 'moderate');
 
-        // ── Emoji usage ─────────────────────────────────────────────
+        //  Emoji usage 
         $emojiCount = preg_match_all('/[\x{1F300}-\x{1F64F}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', $message);
         $style['uses_emoji'] = ($style['uses_emoji'] ?? false) || $emojiCount > 0;
 
-        // ── Save to persistent memory ───────────────────────────────
+        //  Save to persistent memory 
         if ($this->memory && count($this->context) % 5 === 0) {
             // Save every 5th message to avoid excessive writes
             $this->memory->remember('personality', 'communication_style', $style, now()->addDays(30)->toDateTimeString());
@@ -1533,9 +1572,9 @@ class LocalAiEngine
         return $message;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // v12.0: SEMANTIC WEIGHTED CONFIDENCE SCORING
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     /**
      * Apply semantic weighting to keyword matches.
@@ -1556,7 +1595,7 @@ class LocalAiEngine
             // Base match score
             $matchScore = $baseScore;
 
-            // ── Position weighting ──────────────────────────────────
+            //  Position weighting 
             // Keywords at the start of message get 1.5x boost
             // Keywords in the first third get 1.2x
             $relativePos = $pos / max(1, strlen($msg));
@@ -1566,12 +1605,12 @@ class LocalAiEngine
                 $matchScore = (int) ($matchScore * 1.2); // First third
             }
 
-            // ── Exact word boundary match bonus ─────────────────────
+            //  Exact word boundary match bonus 
             if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $msg)) {
                 $matchScore += 3; // Exact word boundary = more confident
             }
 
-            // ── Context history boost ───────────────────────────────
+            //  Context history boost 
             // If the same topic was discussed recently, boost confidence
             foreach (array_slice(array_reverse($this->context), 0, 3) as $ctx) {
                 if (stripos($ctx['text'] ?? '', $keyword) !== false) {
@@ -1586,9 +1625,9 @@ class LocalAiEngine
         return min(100, $score);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // LANGUAGE DETECTION — ID / EN / Javanese / Sundanese / Betawi
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // LANGUAGE DETECTION  ID / EN / Javanese / Sundanese / Betawi
+    // 
 
     private function detectLanguage(string $msg, string $original = ''): string
     {
@@ -1663,9 +1702,9 @@ class LocalAiEngine
         return $scores['en'] > $scores['id'] ? 'en' : 'id';
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // KEYWORD HELPERS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function hasActionKeyword(string $msg): bool
     {
@@ -1751,9 +1790,9 @@ class LocalAiEngine
         return false;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: EISENHOWER MATRIX
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondEisenhowerMatrix(): array
     {
@@ -1794,33 +1833,33 @@ class LocalAiEngine
             else                                  $q4[] = $t;
         }
 
-        $fmt = fn($tasks) => implode("\n", array_map(fn($t) => "  • \"{$t->judul}\"", array_slice($tasks, 0, 5)));
+        $fmt = fn($tasks) => implode("\n", array_map(fn($t) => "   \"{$t->judul}\"", array_slice($tasks, 0, 5)));
         $more = fn($tasks, $max=5) => count($tasks) > $max ? "\n  ...+" . (count($tasks)-$max) . " lagi" : "";
 
         if ($this->lang === 'en') {
-            $text  = "🧭 **EISENHOWER MATRIX**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $text .= "🔴 **Q1 — DO NOW** (Urgent + Important) [" . count($q1) . "]\n";
-            $text .= (empty($q1) ? "  ✅ None — great!\n" : $fmt($q1) . $more($q1) . "\n") . "\n";
-            $text .= "📅 **Q2 — SCHEDULE** (Important, Not Urgent) [" . count($q2) . "]\n";
-            $text .= (empty($q2) ? "  — None\n" : $fmt($q2) . $more($q2) . "\n") . "\n";
-            $text .= "🤝 **Q3 — DELEGATE** (Urgent, Not Important) [" . count($q3) . "]\n";
-            $text .= (empty($q3) ? "  — None\n" : $fmt($q3) . $more($q3) . "\n") . "\n";
-            $text .= "🗑️ **Q4 — ELIMINATE** (Not Urgent + Not Important) [" . count($q4) . "]\n";
-            $text .= (empty($q4) ? "  — None\n" : $fmt($q4) . $more($q4) . "\n") . "\n";
-            $text .= "💡 Focus on Q1 first, then invest time in Q2 to prevent future crises.";
+            $text  = " **EISENHOWER MATRIX**, {$this->userName}\n";
+            $text .= "\n\n";
+            $text .= " **Q1  DO NOW** (Urgent + Important) [" . count($q1) . "]\n";
+            $text .= (empty($q1) ? "   None  great!\n" : $fmt($q1) . $more($q1) . "\n") . "\n";
+            $text .= " **Q2  SCHEDULE** (Important, Not Urgent) [" . count($q2) . "]\n";
+            $text .= (empty($q2) ? "   None\n" : $fmt($q2) . $more($q2) . "\n") . "\n";
+            $text .= " **Q3  DELEGATE** (Urgent, Not Important) [" . count($q3) . "]\n";
+            $text .= (empty($q3) ? "   None\n" : $fmt($q3) . $more($q3) . "\n") . "\n";
+            $text .= " **Q4  ELIMINATE** (Not Urgent + Not Important) [" . count($q4) . "]\n";
+            $text .= (empty($q4) ? "   None\n" : $fmt($q4) . $more($q4) . "\n") . "\n";
+            $text .= " Focus on Q1 first, then invest time in Q2 to prevent future crises.";
         } else {
-            $text  = "🧭 **EISENHOWER MATRIX**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $text .= "🔴 **Q1 — KERJAKAN SEKARANG** (Mendesak + Penting) [" . count($q1) . "]\n";
-            $text .= (empty($q1) ? "  ✅ Kosong — bagus!\n" : $fmt($q1) . $more($q1) . "\n") . "\n";
-            $text .= "📅 **Q2 — JADWALKAN** (Penting, Tidak Mendesak) [" . count($q2) . "]\n";
-            $text .= (empty($q2) ? "  — Kosong\n" : $fmt($q2) . $more($q2) . "\n") . "\n";
-            $text .= "🤝 **Q3 — DELEGASIKAN** (Mendesak, Tidak Penting) [" . count($q3) . "]\n";
-            $text .= (empty($q3) ? "  — Kosong\n" : $fmt($q3) . $more($q3) . "\n") . "\n";
-            $text .= "🗑️ **Q4 — ELIMINASI** (Tidak Mendesak + Tidak Penting) [" . count($q4) . "]\n";
-            $text .= (empty($q4) ? "  — Kosong\n" : $fmt($q4) . $more($q4) . "\n") . "\n";
-            $text .= "💡 Fokus ke Q1 dulu, lalu investasikan waktu di Q2 untuk mencegah krisis masa depan.";
+            $text  = " **EISENHOWER MATRIX**, {$this->userName}\n";
+            $text .= "\n\n";
+            $text .= " **Q1  KERJAKAN SEKARANG** (Mendesak + Penting) [" . count($q1) . "]\n";
+            $text .= (empty($q1) ? "   Kosong  bagus!\n" : $fmt($q1) . $more($q1) . "\n") . "\n";
+            $text .= " **Q2  JADWALKAN** (Penting, Tidak Mendesak) [" . count($q2) . "]\n";
+            $text .= (empty($q2) ? "   Kosong\n" : $fmt($q2) . $more($q2) . "\n") . "\n";
+            $text .= " **Q3  DELEGASIKAN** (Mendesak, Tidak Penting) [" . count($q3) . "]\n";
+            $text .= (empty($q3) ? "   Kosong\n" : $fmt($q3) . $more($q3) . "\n") . "\n";
+            $text .= " **Q4  ELIMINASI** (Tidak Mendesak + Tidak Penting) [" . count($q4) . "]\n";
+            $text .= (empty($q4) ? "   Kosong\n" : $fmt($q4) . $more($q4) . "\n") . "\n";
+            $text .= " Fokus ke Q1 dulu, lalu investasikan waktu di Q2 untuk mencegah krisis masa depan.";
         }
 
         return $this->respond($text, [
@@ -1829,9 +1868,9 @@ class LocalAiEngine
         ], ['eisenhower', 'focus_mode', 'smart_prioritize']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: STREAK & ACHIEVEMENT
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondStreakAchievement(): array
     {
@@ -1860,62 +1899,62 @@ class LocalAiEngine
 
         // Determine badges
         $badges = [];
-        if ($completedCt >= 1)   $badges[] = '🥉 First Task Done';
-        if ($completedCt >= 10)  $badges[] = '🥈 10 Tasks Champion';
-        if ($completedCt >= 25)  $badges[] = '🥇 25 Tasks Legend';
-        if ($completedCt >= 50)  $badges[] = '💎 50 Tasks Diamond';
-        if ($completedCt >= 100) $badges[] = '👑 100 Tasks Royalty';
-        if ($streak >= 3)        $badges[] = "🔥 {$streak}-Day Streak";
-        if ($streak >= 7)        $badges[] = "⚡ Week Warrior";
-        if ($streak >= 30)       $badges[] = "🌟 30-Day Legend";
-        if ($rate >= 80)         $badges[] = '🎯 80%+ Completion Rate';
-        if ($todayDone >= 5)     $badges[] = '💪 5+ Tasks Today';
+        if ($completedCt >= 1)   $badges[] = ' First Task Done';
+        if ($completedCt >= 10)  $badges[] = ' 10 Tasks Champion';
+        if ($completedCt >= 25)  $badges[] = ' 25 Tasks Legend';
+        if ($completedCt >= 50)  $badges[] = ' 50 Tasks Diamond';
+        if ($completedCt >= 100) $badges[] = ' 100 Tasks Royalty';
+        if ($streak >= 3)        $badges[] = " {$streak}-Day Streak";
+        if ($streak >= 7)        $badges[] = " Week Warrior";
+        if ($streak >= 30)       $badges[] = " 30-Day Legend";
+        if ($rate >= 80)         $badges[] = ' 80%+ Completion Rate';
+        if ($todayDone >= 5)     $badges[] = ' 5+ Tasks Today';
 
         $nextMilestone = collect([1,10,25,50,100,250,500])
             ->first(fn($m) => $m > $completedCt);
 
         if ($this->lang === 'en') {
-            $text  = "🏆 **ACHIEVEMENTS & STREAK**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $text .= "🔥 Current Streak: {$streak} day(s)\n";
-            $text .= "✅ Total Completed: {$completedCt} tasks\n";
-            $text .= "📅 Completed Today: {$todayDone} tasks\n";
-            $text .= "📊 All-time Rate: {$rate}%\n\n";
+            $text  = " **ACHIEVEMENTS & STREAK**, {$this->userName}\n";
+            $text .= "\n\n";
+            $text .= " Current Streak: {$streak} day(s)\n";
+            $text .= " Total Completed: {$completedCt} tasks\n";
+            $text .= " Completed Today: {$todayDone} tasks\n";
+            $text .= " All-time Rate: {$rate}%\n\n";
             if (!empty($badges)) {
-                $text .= "🏅 **Badges Earned:**\n";
+                $text .= " **Badges Earned:**\n";
                 foreach ($badges as $b) $text .= "  {$b}\n";
             } else {
-                $text .= "🔓 No badges yet — complete your first task to earn one!\n";
+                $text .= " No badges yet  complete your first task to earn one!\n";
             }
             if ($nextMilestone) {
                 $remaining = $nextMilestone - $completedCt;
-                $text .= "\n🎯 Next milestone: {$nextMilestone} tasks ({$remaining} to go!)";
+                $text .= "\n Next milestone: {$nextMilestone} tasks ({$remaining} to go!)";
             }
         } else {
-            $text  = "🏆 **PENCAPAIAN & STREAK**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $text .= "🔥 Streak Saat Ini: {$streak} hari\n";
-            $text .= "✅ Total Selesai: {$completedCt} tugas\n";
-            $text .= "📅 Selesai Hari Ini: {$todayDone} tugas\n";
-            $text .= "📊 Tingkat Selesai: {$rate}%\n\n";
+            $text  = " **PENCAPAIAN & STREAK**, {$this->userName}\n";
+            $text .= "\n\n";
+            $text .= " Streak Saat Ini: {$streak} hari\n";
+            $text .= " Total Selesai: {$completedCt} tugas\n";
+            $text .= " Selesai Hari Ini: {$todayDone} tugas\n";
+            $text .= " Tingkat Selesai: {$rate}%\n\n";
             if (!empty($badges)) {
-                $text .= "🏅 **Lencana Diraih:**\n";
+                $text .= " **Lencana Diraih:**\n";
                 foreach ($badges as $b) $text .= "  {$b}\n";
             } else {
-                $text .= "🔓 Belum ada lencana — selesaikan tugas pertama untuk mendapat satu!\n";
+                $text .= " Belum ada lencana  selesaikan tugas pertama untuk mendapat satu!\n";
             }
             if ($nextMilestone) {
                 $remaining = $nextMilestone - $completedCt;
-                $text .= "\n🎯 Milestone berikutnya: {$nextMilestone} tugas ({$remaining} lagi!)";
+                $text .= "\n Milestone berikutnya: {$nextMilestone} tugas ({$remaining} lagi!)";
             }
         }
 
         return $this->respond($text, null, ['weekly_review', 'productivity', 'stats']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: DEEP WORK BLOCKS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondDeepWorkBlocks(): array
     {
@@ -1952,43 +1991,43 @@ class LocalAiEngine
         }
 
         if ($this->lang === 'en') {
-            $text  = "🧠 **DEEP WORK SCHEDULE**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $text  = " **DEEP WORK SCHEDULE**, {$this->userName}\n";
+            $text .= "\n";
             $text .= "Based on Cal Newport's Deep Work methodology\n\n";
             foreach ($blocks as $b) {
                 $end = Carbon::createFromFormat('H:i', $b['start'])->addMinutes($b['duration'])->format('H:i');
-                $text .= "🟦 **{$b['start']} – {$end}** ({$b['duration']} min)\n";
-                foreach ($b['tasks'] as $task) $text .= "   📌 \"{$task}\"\n";
+                $text .= " **{$b['start']}  {$end}** ({$b['duration']} min)\n";
+                foreach ($b['tasks'] as $task) $text .= "    \"{$task}\"\n";
                 $text .= "\n";
             }
-            $text .= "💡 Rules:\n";
-            $text .= "• Phone on silent, notifications off\n";
-            $text .= "• One task at a time — no multitasking\n";
-            $text .= "• 15-min break between blocks\n";
-            $text .= "• 60-min lunch after Q2 block";
+            $text .= " Rules:\n";
+            $text .= " Phone on silent, notifications off\n";
+            $text .= " One task at a time  no multitasking\n";
+            $text .= " 15-min break between blocks\n";
+            $text .= " 60-min lunch after Q2 block";
         } else {
-            $text  = "🧠 **JADWAL DEEP WORK**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $text  = " **JADWAL DEEP WORK**, {$this->userName}\n";
+            $text .= "\n";
             $text .= "Berdasarkan metodologi Deep Work Cal Newport\n\n";
             foreach ($blocks as $b) {
                 $end = Carbon::createFromFormat('H:i', $b['start'])->addMinutes($b['duration'])->format('H:i');
-                $text .= "🟦 **{$b['start']} – {$end}** ({$b['duration']} menit)\n";
-                foreach ($b['tasks'] as $task) $text .= "   📌 \"{$task}\"\n";
+                $text .= " **{$b['start']}  {$end}** ({$b['duration']} menit)\n";
+                foreach ($b['tasks'] as $task) $text .= "    \"{$task}\"\n";
                 $text .= "\n";
             }
-            $text .= "💡 Aturan:\n";
-            $text .= "• HP silent, matikan notifikasi\n";
-            $text .= "• Satu tugas sekaligus — no multitasking\n";
-            $text .= "• Istirahat 15 menit antar blok\n";
-            $text .= "• Makan siang 60 menit setelah blok ke-2";
+            $text .= " Aturan:\n";
+            $text .= " HP silent, matikan notifikasi\n";
+            $text .= " Satu tugas sekaligus  no multitasking\n";
+            $text .= " Istirahat 15 menit antar blok\n";
+            $text .= " Makan siang 60 menit setelah blok ke-2";
         }
 
         return $this->respond($text, null, ['pomodoro', 'focus_mode', 'daily_planner']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: POMODORO COMMAND
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondPomodoro(string $msg): array
     {
@@ -2016,22 +2055,22 @@ class LocalAiEngine
         ];
 
         if ($this->lang === 'en') {
-            $text  = "⏱️ **POMODORO TIMER**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $text .= "🟢 Work: **{$workMins} minutes**\n";
-            $text .= "🔴 Break: **{$breakMins} minutes**\n\n";
+            $text  = " **POMODORO TIMER**, {$this->userName}\n";
+            $text .= "\n\n";
+            $text .= " Work: **{$workMins} minutes**\n";
+            $text .= " Break: **{$breakMins} minutes**\n\n";
             if ($topTask) {
-                $text .= "🎯 Suggested task: \"{$topTask->judul}\"\n\n";
+                $text .= " Suggested task: \"{$topTask->judul}\"\n\n";
             }
             $text .= "A Pomodoro session will be logged as a task.\n";
             $text .= "You have {$pendingCount} pending tasks. Good luck!";
         } else {
-            $text  = "⏱️ **POMODORO TIMER**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $text .= "🟢 Fokus: **{$workMins} menit**\n";
-            $text .= "🔴 Istirahat: **{$breakMins} menit**\n\n";
+            $text  = " **POMODORO TIMER**, {$this->userName}\n";
+            $text .= "\n\n";
+            $text .= " Fokus: **{$workMins} menit**\n";
+            $text .= " Istirahat: **{$breakMins} menit**\n\n";
             if ($topTask) {
-                $text .= "🎯 Tugas yang disarankan: \"{$topTask->judul}\"\n\n";
+                $text .= " Tugas yang disarankan: \"{$topTask->judul}\"\n\n";
             }
             $text .= "Sesi Pomodoro akan dicatat sebagai tugas.\n";
             $text .= "Anda punya {$pendingCount} tugas pending. Semangat!";
@@ -2044,9 +2083,9 @@ class LocalAiEngine
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: EMOTION DETECTION & EMPATHETIC RESPONSE
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondEmotion(string $msg): array
     {
@@ -2172,9 +2211,9 @@ class LocalAiEngine
         return $this->respond($text, null, ['focus_mode', 'daily_planner', 'smart_suggest']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: GOAL SETTING & TRACKING
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondSetGoal(string $msg, string $original): array
     {
@@ -2184,8 +2223,8 @@ class LocalAiEngine
 
         if (empty($goalText) || mb_strlen($goalText) < 3) {
             return $this->respond($this->t(
-                "💭 Goal apa yang ingin Anda capai, {$this->userName}? Contoh: \"buat goal selesaikan 10 tugas minggu ini\"",
-                "💭 What goal do you want to set, {$this->userName}? Example: \"set goal complete 10 tasks this week\""
+                " Goal apa yang ingin Anda capai, {$this->userName}? Contoh: \"buat goal selesaikan 10 tugas minggu ini\"",
+                " What goal do you want to set, {$this->userName}? Example: \"set goal complete 10 tasks this week\""
             ));
         }
 
@@ -2194,7 +2233,7 @@ class LocalAiEngine
         // Create a special goal task with deadline end of week
         $deadline = $this->now->copy()->endOfWeek()->setTime(23, 59);
         $data = [
-            'judul'    => "🎯 Goal: {$goalTitle}",
+            'judul'    => " Goal: {$goalTitle}",
             'priority' => 'high',
             'deadline' => $deadline->format('Y-m-d H:i:s'),
             'deskripsi' => "Weekly goal set on " . $this->now->format('d M Y'),
@@ -2202,8 +2241,8 @@ class LocalAiEngine
 
         return $this->respond(
             $this->t(
-                "🎯 Goal \"{$goalTitle}\" telah ditetapkan hingga {$deadline->format('l, d M Y')}. Semangat!",
-                "🎯 Goal \"{$goalTitle}\" has been set with deadline {$deadline->format('l, d M Y')}. Go for it!"
+                " Goal \"{$goalTitle}\" telah ditetapkan hingga {$deadline->format('l, d M Y')}. Semangat!",
+                " Goal \"{$goalTitle}\" has been set with deadline {$deadline->format('l, d M Y')}. Go for it!"
             ),
             ['type' => 'create_task', 'data' => $data],
             ['check_goal', 'focus_mode', 'productivity']
@@ -2212,7 +2251,7 @@ class LocalAiEngine
 
     private function respondCheckGoal(): array
     {
-        $goals = $this->todos->filter(fn($t) => Str::startsWith($t->judul, '🎯 Goal:'));
+        $goals = $this->todos->filter(fn($t) => Str::startsWith($t->judul, ' Goal:'));
 
         if ($goals->isEmpty()) {
             return $this->respond($this->t(
@@ -2223,23 +2262,23 @@ class LocalAiEngine
 
         $lines = [];
         foreach ($goals as $g) {
-            $status   = $g->is_completed ? '✅' : '⬜';
-            $deadline = $g->deadline ? Carbon::parse($g->deadline)->format('d M') : '—';
-            $overdue  = (!$g->is_completed && $g->deadline && Carbon::parse($g->deadline)->isPast()) ? ' ⚠️' : '';
-            $lines[]  = "{$status} " . str_replace('🎯 Goal: ', '', $g->judul) . " (deadline: {$deadline}){$overdue}";
+            $status   = $g->is_completed ? '' : '';
+            $deadline = $g->deadline ? Carbon::parse($g->deadline)->format('d M') : '';
+            $overdue  = (!$g->is_completed && $g->deadline && Carbon::parse($g->deadline)->isPast()) ? ' ' : '';
+            $lines[]  = "{$status} " . str_replace(' Goal: ', '', $g->judul) . " (deadline: {$deadline}){$overdue}";
         }
 
         $completed = $goals->where('is_completed', true)->count();
         $total     = $goals->count();
 
-        $header = $this->t("🎯 **Goal Tracker**, {$this->userName} ({$completed}/{$total} tercapai):\n\n",
-                            "🎯 **Goal Tracker**, {$this->userName} ({$completed}/{$total} achieved):\n\n");
+        $header = $this->t(" **Goal Tracker**, {$this->userName} ({$completed}/{$total} tercapai):\n\n",
+                            " **Goal Tracker**, {$this->userName} ({$completed}/{$total} achieved):\n\n");
         return $this->respond($header . implode("\n", $lines), null, ['set_goal', 'productivity']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // NEW: BATCH UPDATE (multiple tasks at once)
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseBatchUpdate(string $msg, string $original): ?array
     {
@@ -2289,17 +2328,17 @@ class LocalAiEngine
         return null;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // EXISTING FEATURES — Enhanced versions
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // EXISTING FEATURES  Enhanced versions
+    // 
 
     private function respondFocusMode(): array
     {
         $pending = $this->todos->where('is_completed', false);
         if ($pending->isEmpty()) {
             return $this->respond($this->t(
-                "✅ Tidak ada tugas pending. Anda sudah menyelesaikan semuanya, {$this->userName}!",
-                "✅ No pending tasks. You've completed everything, {$this->userName}!"
+                " Tidak ada tugas pending. Anda sudah menyelesaikan semuanya, {$this->userName}!",
+                " No pending tasks. You've completed everything, {$this->userName}!"
             ));
         }
 
@@ -2325,28 +2364,28 @@ class LocalAiEngine
         $estTime = match($top->priority ?? 'medium') { 'high' => '90 min', 'medium' => '45 min', 'low' => '20 min', default => '45 min' };
 
         if ($this->lang === 'en') {
-            $text  = "🎯 **FOCUS MODE**, {$this->userName}\n\n";
+            $text  = " **FOCUS MODE**, {$this->userName}\n\n";
             $text .= "Your #1 priority right now:\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            $text .= "📌 \"{$top->judul}\"\n";
+            $text .= "\n";
+            $text .= " \"{$top->judul}\"\n";
             $text .= "Priority: {$priority} | Est. Time: ~{$estTime}";
             $text .= $deadline ? " | Deadline: {$deadline}\n" : "\n";
-            if ($topScore >= 100)    $text .= "⚠️ This task is OVERDUE — complete it immediately!\n";
-            elseif ($topScore >= 80) $text .= "⏰ Due TODAY — focus on this first.\n";
-            elseif ($topScore >= 60) $text .= "📅 Due tomorrow — get a head start.\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            if ($topScore >= 100)    $text .= " This task is OVERDUE  complete it immediately!\n";
+            elseif ($topScore >= 80) $text .= " Due TODAY  focus on this first.\n";
+            elseif ($topScore >= 60) $text .= " Due tomorrow  get a head start.\n";
+            $text .= "\n\n";
             if ($scored->count() > 1) $text .= "Up next: \"{$scored->values()[1]['task']->judul}\"";
         } else {
-            $text  = "🎯 **MODE FOKUS**, {$this->userName}\n\n";
+            $text  = " **MODE FOKUS**, {$this->userName}\n\n";
             $text .= "Prioritas #1 Anda sekarang:\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            $text .= "📌 \"{$top->judul}\"\n";
+            $text .= "\n";
+            $text .= " \"{$top->judul}\"\n";
             $text .= "Prioritas: {$priority} | Estimasi: ~{$estTime}";
             $text .= $deadline ? " | Deadline: {$deadline}\n" : "\n";
-            if ($topScore >= 100)    $text .= "⚠️ Tugas ini sudah TERLAMBAT — selesaikan segera!\n";
-            elseif ($topScore >= 80) $text .= "⏰ Jatuh tempo HARI INI — fokus ke ini dulu.\n";
-            elseif ($topScore >= 60) $text .= "📅 Jatuh tempo besok — mulai dari sekarang.\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            if ($topScore >= 100)    $text .= " Tugas ini sudah TERLAMBAT  selesaikan segera!\n";
+            elseif ($topScore >= 80) $text .= " Jatuh tempo HARI INI  fokus ke ini dulu.\n";
+            elseif ($topScore >= 60) $text .= " Jatuh tempo besok  mulai dari sekarang.\n";
+            $text .= "\n\n";
             if ($scored->count() > 1) $text .= "Berikutnya: \"{$scored->values()[1]['task']->judul}\"";
         }
 
@@ -2365,64 +2404,64 @@ class LocalAiEngine
 
         if ($this->lang === 'en') {
             if ($overdue > 0)
-                $suggestions[] = "⚠️ {$overdue} overdue task(s). Say \"reschedule overdue tasks\" to fix them.";
+                $suggestions[] = " {$overdue} overdue task(s). Say \"reschedule overdue tasks\" to fix them.";
             if (!$hasDeadlines && $pending->count() > 0)
-                $suggestions[] = "📅 None of your tasks have deadlines. Add deadlines to stay on track.";
+                $suggestions[] = " None of your tasks have deadlines. Add deadlines to stay on track.";
             if ($pending->count() > 10)
-                $suggestions[] = "📊 {$pending->count()} pending tasks. Try the daily planner to break them down.";
+                $suggestions[] = " {$pending->count()} pending tasks. Try the daily planner to break them down.";
             if ($pending->where('priority', 'low')->count() > 5)
-                $suggestions[] = "🔻 Many low-priority tasks. Consider \"delete all low priority tasks\".";
+                $suggestions[] = " Many low-priority tasks. Consider \"delete all low priority tasks\".";
             if ($completed->count() > 0 && $pending->count() == 0)
-                $suggestions[] = "🎉 All tasks done! Set a new goal with \"set goal [objective]\".";
+                $suggestions[] = " All tasks done! Set a new goal with \"set goal [objective]\".";
             if ($pending->count() == 0 && $completed->count() == 0)
-                $suggestions[] = "📝 Task list is empty. Try \"template project\" to quick-start!";
+                $suggestions[] = " Task list is empty. Try \"template project\" to quick-start!";
             if (!$hasHighPriority && $pending->count() > 3)
-                $suggestions[] = "⬆️ No high-priority tasks. Try \"auto prioritize\" for smart suggestions.";
+                $suggestions[] = " No high-priority tasks. Try \"auto prioritize\" for smart suggestions.";
             // Eisenhower tip
             if ($pending->count() >= 4)
-                $suggestions[] = "🧭 Try \"eisenhower matrix\" to visualize urgency vs importance.";
+                $suggestions[] = " Try \"eisenhower matrix\" to visualize urgency vs importance.";
             // Streak tip
             if ($completed->count() > 0)
-                $suggestions[] = "🏆 Say \"show my achievements\" to see your streak and badges!";
+                $suggestions[] = " Say \"show my achievements\" to see your streak and badges!";
             $hour = $this->now->hour;
             if ($hour >= 8 && $hour <= 10)
-                $suggestions[] = "🌅 Morning! Perfect for deep work. Try \"deep work schedule\".";
+                $suggestions[] = " Morning! Perfect for deep work. Try \"deep work schedule\".";
             elseif ($hour >= 14 && $hour <= 15)
-                $suggestions[] = "☕ Post-lunch slump? Try \"start pomodoro\" for a quick focus session.";
+                $suggestions[] = " Post-lunch slump? Try \"start pomodoro\" for a quick focus session.";
             elseif ($hour >= 17)
-                $suggestions[] = "🌙 End of day — try \"weekly review\" to see your progress.";
-            $text = "💡 Smart Suggestions, {$this->userName}:\n\n";
+                $suggestions[] = " End of day  try \"weekly review\" to see your progress.";
+            $text = " Smart Suggestions, {$this->userName}:\n\n";
         } else {
             if ($overdue > 0)
-                $suggestions[] = "⚠️ Ada {$overdue} tugas terlambat. Ucapkan \"jadwalkan ulang tugas terlambat\".";
+                $suggestions[] = " Ada {$overdue} tugas terlambat. Ucapkan \"jadwalkan ulang tugas terlambat\".";
             if (!$hasDeadlines && $pending->count() > 0)
-                $suggestions[] = "📅 Tidak ada tugas yang punya deadline. Tambahkan agar tetap on track.";
+                $suggestions[] = " Tidak ada tugas yang punya deadline. Tambahkan agar tetap on track.";
             if ($pending->count() > 10)
-                $suggestions[] = "📊 {$pending->count()} tugas pending. Coba \"rencana harian\" untuk membaginya.";
+                $suggestions[] = " {$pending->count()} tugas pending. Coba \"rencana harian\" untuk membaginya.";
             if ($pending->where('priority', 'low')->count() > 5)
-                $suggestions[] = "🔻 Banyak tugas prioritas rendah. Pertimbangkan menghapusnya.";
+                $suggestions[] = " Banyak tugas prioritas rendah. Pertimbangkan menghapusnya.";
             if ($completed->count() > 0 && $pending->count() == 0)
-                $suggestions[] = "🎉 Semua selesai! Buat goal baru dengan \"buat goal [tujuan]\".";
+                $suggestions[] = " Semua selesai! Buat goal baru dengan \"buat goal [tujuan]\".";
             if ($pending->count() == 0 && $completed->count() == 0)
-                $suggestions[] = "📝 Daftar tugas kosong. Coba \"template project\" untuk mulai cepat!";
+                $suggestions[] = " Daftar tugas kosong. Coba \"template project\" untuk mulai cepat!";
             if (!$hasHighPriority && $pending->count() > 3)
-                $suggestions[] = "⬆️ Belum ada tugas prioritas tinggi. Coba \"auto prioritas\".";
+                $suggestions[] = " Belum ada tugas prioritas tinggi. Coba \"auto prioritas\".";
             if ($pending->count() >= 4)
-                $suggestions[] = "🧭 Coba \"eisenhower matrix\" untuk visualisasi urgensi vs kepentingan.";
+                $suggestions[] = " Coba \"eisenhower matrix\" untuk visualisasi urgensi vs kepentingan.";
             if ($completed->count() > 0)
-                $suggestions[] = "🏆 Ucapkan \"lihat pencapaian\" untuk melihat streak dan lencana Anda!";
+                $suggestions[] = " Ucapkan \"lihat pencapaian\" untuk melihat streak dan lencana Anda!";
             $hour = $this->now->hour;
             if ($hour >= 8 && $hour <= 10)
-                $suggestions[] = "🌅 Pagi! Cocok untuk deep work. Coba \"jadwal deep work\".";
+                $suggestions[] = " Pagi! Cocok untuk deep work. Coba \"jadwal deep work\".";
             elseif ($hour >= 14 && $hour <= 15)
-                $suggestions[] = "☕ Ngantuk setelah makan siang? Coba \"mulai pomodoro\".";
+                $suggestions[] = " Ngantuk setelah makan siang? Coba \"mulai pomodoro\".";
             elseif ($hour >= 17)
-                $suggestions[] = "🌙 Menjelang malam — coba \"review mingguan\" untuk melihat progres.";
-            $text = "💡 Saran Cerdas, {$this->userName}:\n\n";
+                $suggestions[] = " Menjelang malam  coba \"review mingguan\" untuk melihat progres.";
+            $text = " Saran Cerdas, {$this->userName}:\n\n";
         }
 
         if (empty($suggestions))
-            $suggestions[] = $this->t("✅ Semuanya terlihat bagus! Terus pertahankan momentum Anda.", "✅ Everything looks great! Keep up the momentum.");
+            $suggestions[] = $this->t(" Semuanya terlihat bagus! Terus pertahankan momentum Anda.", " Everything looks great! Keep up the momentum.");
 
         foreach ($suggestions as $i => $s)
             $text .= ($i + 1) . ". {$s}\n";
@@ -2435,8 +2474,8 @@ class LocalAiEngine
         $pending = $this->todos->where('is_completed', false);
         if ($pending->isEmpty()) {
             return $this->respond($this->t(
-                "📋 Tidak ada tugas pending untuk direncanakan, {$this->userName}. Tambahkan tugas dulu!",
-                "📋 No pending tasks to plan, {$this->userName}. Add some tasks first!"
+                " Tidak ada tugas pending untuk direncanakan, {$this->userName}. Tambahkan tugas dulu!",
+                " No pending tasks to plan, {$this->userName}. Add some tasks first!"
             ));
         }
 
@@ -2454,7 +2493,7 @@ class LocalAiEngine
         $eveningSlot = [];
         $i = 0;
         foreach ($sorted->take(9) as $t) {
-            $entry = "• \"{$t->judul}\" [{$t->priority}]";
+            $entry = " \"{$t->judul}\" [{$t->priority}]";
             if ($i < 3)      $morningSlot[]   = $entry;
             elseif ($i < 6)  $afternoonSlot[] = $entry;
             else              $eveningSlot[]   = $entry;
@@ -2465,21 +2504,21 @@ class LocalAiEngine
         $dayName = \Illuminate\Support\Carbon::parse($this->now)->locale($this->lang === 'id' ? 'id' : 'en')->dayName . ', ' . \Illuminate\Support\Carbon::parse($this->now)->format('j F Y');
 
         if ($this->lang === 'en') {
-            $text  = "📋 **DAILY PLAN** — {$dayName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            if (!empty($morningSlot))   $text .= "🌅 **Morning (08:00-12:00)**\n"   . implode("\n", $morningSlot)   . "\n\n";
-            if (!empty($afternoonSlot)) $text .= "☀️ **Afternoon (13:00-17:00)**\n" . implode("\n", $afternoonSlot) . "\n\n";
-            if (!empty($eveningSlot))   $text .= "🌙 **Evening (18:00-21:00)**\n"   . implode("\n", $eveningSlot)   . "\n\n";
-            if ($backlogCount > 0)      $text .= "📦 +{$backlogCount} more in backlog\n";
-            $text .= "\n💡 Say \"deep work schedule\" for time-blocked sessions!";
+            $text  = " **DAILY PLAN**  {$dayName}\n";
+            $text .= "\n\n";
+            if (!empty($morningSlot))   $text .= " **Morning (08:00-12:00)**\n"   . implode("\n", $morningSlot)   . "\n\n";
+            if (!empty($afternoonSlot)) $text .= " **Afternoon (13:00-17:00)**\n" . implode("\n", $afternoonSlot) . "\n\n";
+            if (!empty($eveningSlot))   $text .= " **Evening (18:00-21:00)**\n"   . implode("\n", $eveningSlot)   . "\n\n";
+            if ($backlogCount > 0)      $text .= " +{$backlogCount} more in backlog\n";
+            $text .= "\n Say \"deep work schedule\" for time-blocked sessions!";
         } else {
-            $text  = "📋 **RENCANA HARIAN** — {$dayName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            if (!empty($morningSlot))   $text .= "🌅 **Pagi (08:00-12:00)**\n"   . implode("\n", $morningSlot)   . "\n\n";
-            if (!empty($afternoonSlot)) $text .= "☀️ **Siang (13:00-17:00)**\n" . implode("\n", $afternoonSlot) . "\n\n";
-            if (!empty($eveningSlot))   $text .= "🌙 **Malam (18:00-21:00)**\n"  . implode("\n", $eveningSlot)   . "\n\n";
-            if ($backlogCount > 0)      $text .= "📦 +{$backlogCount} lagi di backlog\n";
-            $text .= "\n💡 Ucapkan \"jadwal deep work\" untuk sesi kerja terblok!";
+            $text  = " **RENCANA HARIAN**  {$dayName}\n";
+            $text .= "\n\n";
+            if (!empty($morningSlot))   $text .= " **Pagi (08:00-12:00)**\n"   . implode("\n", $morningSlot)   . "\n\n";
+            if (!empty($afternoonSlot)) $text .= " **Siang (13:00-17:00)**\n" . implode("\n", $afternoonSlot) . "\n\n";
+            if (!empty($eveningSlot))   $text .= " **Malam (18:00-21:00)**\n"  . implode("\n", $eveningSlot)   . "\n\n";
+            if ($backlogCount > 0)      $text .= " +{$backlogCount} lagi di backlog\n";
+            $text .= "\n Ucapkan \"jadwal deep work\" untuk sesi kerja terblok!";
         }
 
         return $this->respond($text, null, ['deep_work', 'pomodoro', 'focus_mode']);
@@ -2505,41 +2544,41 @@ class LocalAiEngine
         $total        = $this->todos->count();
         $completionRate = $total > 0 ? round(($totalCompleted / $total) * 100) : 0;
 
-        if ($completionRate >= 80) $rating = '🌟🌟🌟🌟🌟';
-        elseif ($completionRate >= 60) $rating = '🌟🌟🌟🌟';
-        elseif ($completionRate >= 40) $rating = '🌟🌟🌟';
-        elseif ($completionRate >= 20) $rating = '🌟🌟';
-        else $rating = '🌟';
+        if ($completionRate >= 80) $rating = '';
+        elseif ($completionRate >= 60) $rating = '';
+        elseif ($completionRate >= 40) $rating = '';
+        elseif ($completionRate >= 20) $rating = '';
+        else $rating = '';
 
         // Velocity: tasks completed this week / tasks created this week
         $velocity = $createdThisWeek > 0 ? round(($completedThisWeek / $createdThisWeek) * 100) : 0;
 
         if ($this->lang === 'en') {
-            $text  = "📊 **WEEKLY REVIEW** — Week of {$startOfWeek->format('d M')}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $text  = " **WEEKLY REVIEW**  Week of {$startOfWeek->format('d M')}\n";
+            $text .= "\n\n";
             $text .= "Rating: {$rating} ({$completionRate}%)\n";
-            $text .= "⚡ Velocity: {$velocity}% (completed/created ratio)\n\n";
-            $text .= "📈 **This Week**\n";
-            $text .= "• Created: {$createdThisWeek} | Completed: {$completedThisWeek}\n";
-            $text .= "• Still Pending: {$pendingCount} | Overdue: {$overdue}\n\n";
-            if ($completedThisWeek > 5)     $text .= "🔥 Outstanding productivity! You crushed it.\n";
-            elseif ($completedThisWeek > 0) $text .= "👍 Good progress. Keep the momentum!\n";
-            else                             $text .= "💪 Slow week? Let's make next week better!\n";
-            if ($overdue > 0) $text .= "⚠️ Address {$overdue} overdue task(s) before the weekend.\n";
-            $text .= "\n💡 Say \"show my achievements\" to see your badges!";
+            $text .= " Velocity: {$velocity}% (completed/created ratio)\n\n";
+            $text .= " **This Week**\n";
+            $text .= " Created: {$createdThisWeek} | Completed: {$completedThisWeek}\n";
+            $text .= " Still Pending: {$pendingCount} | Overdue: {$overdue}\n\n";
+            if ($completedThisWeek > 5)     $text .= " Outstanding productivity! You crushed it.\n";
+            elseif ($completedThisWeek > 0) $text .= " Good progress. Keep the momentum!\n";
+            else                             $text .= " Slow week? Let's make next week better!\n";
+            if ($overdue > 0) $text .= " Address {$overdue} overdue task(s) before the weekend.\n";
+            $text .= "\n Say \"show my achievements\" to see your badges!";
         } else {
-            $text  = "📊 **REVIEW MINGGUAN** — Minggu {$startOfWeek->format('d M')}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $text  = " **REVIEW MINGGUAN**  Minggu {$startOfWeek->format('d M')}\n";
+            $text .= "\n\n";
             $text .= "Rating: {$rating} ({$completionRate}%)\n";
-            $text .= "⚡ Kecepatan: {$velocity}% (rasio selesai/dibuat)\n\n";
-            $text .= "📈 **Minggu Ini**\n";
-            $text .= "• Dibuat: {$createdThisWeek} | Selesai: {$completedThisWeek}\n";
-            $text .= "• Masih Pending: {$pendingCount} | Terlambat: {$overdue}\n\n";
-            if ($completedThisWeek > 5)     $text .= "🔥 Produktivitas luar biasa! Anda hebat minggu ini.\n";
-            elseif ($completedThisWeek > 0) $text .= "👍 Progres bagus. Pertahankan momentum!\n";
-            else                             $text .= "💪 Minggu yang lambat? Mari buat minggu depan lebih baik!\n";
-            if ($overdue > 0) $text .= "⚠️ Selesaikan {$overdue} tugas terlambat sebelum akhir minggu.\n";
-            $text .= "\n💡 Ucapkan \"lihat pencapaian\" untuk melihat lencana Anda!";
+            $text .= " Kecepatan: {$velocity}% (rasio selesai/dibuat)\n\n";
+            $text .= " **Minggu Ini**\n";
+            $text .= " Dibuat: {$createdThisWeek} | Selesai: {$completedThisWeek}\n";
+            $text .= " Masih Pending: {$pendingCount} | Terlambat: {$overdue}\n\n";
+            if ($completedThisWeek > 5)     $text .= " Produktivitas luar biasa! Anda hebat minggu ini.\n";
+            elseif ($completedThisWeek > 0) $text .= " Progres bagus. Pertahankan momentum!\n";
+            else                             $text .= " Minggu yang lambat? Mari buat minggu depan lebih baik!\n";
+            if ($overdue > 0) $text .= " Selesaikan {$overdue} tugas terlambat sebelum akhir minggu.\n";
+            $text .= "\n Ucapkan \"lihat pencapaian\" untuk melihat lencana Anda!";
         }
 
         return $this->respond($text, null, ['streak', 'productivity', 'stats']);
@@ -2557,36 +2596,36 @@ class LocalAiEngine
 
         $stress = min(100, ($total * 5) + ($high * 15) + ($overdue * 25) + ($todayCount * 10));
 
-        if ($stress >= 80)      { $level = $this->t('🔴 KRITIS','🔴 CRITICAL'); $emoji = '🚨'; }
-        elseif ($stress >= 60)  { $level = $this->t('🟠 TINGGI','🟠 HIGH');    $emoji = '⚡'; }
-        elseif ($stress >= 40)  { $level = $this->t('🟡 SEDANG','🟡 MODERATE'); $emoji = '📊'; }
-        elseif ($stress >= 20)  { $level = $this->t('🟢 RINGAN','🟢 LIGHT');   $emoji = '✨'; }
-        else                    { $level = $this->t('💚 SANTAI','💚 RELAXED'); $emoji = '🏖️'; }
+        if ($stress >= 80)      { $level = $this->t(' KRITIS',' CRITICAL'); $emoji = ''; }
+        elseif ($stress >= 60)  { $level = $this->t(' TINGGI',' HIGH');    $emoji = ''; }
+        elseif ($stress >= 40)  { $level = $this->t(' SEDANG',' MODERATE'); $emoji = ''; }
+        elseif ($stress >= 20)  { $level = $this->t(' RINGAN',' LIGHT');   $emoji = ''; }
+        else                    { $level = $this->t(' SANTAI',' RELAXED'); $emoji = ''; }
 
         if ($this->lang === 'en') {
             $text  = "{$emoji} **WORKLOAD ANALYSIS**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $text .= "\n\n";
             $text .= "Stress Level: {$level} ({$stress}/100)\n\n";
-            $text .= "📋 Total Pending: {$total}\n";
-            $text .= "🔴 High Priority: {$high} | ⚠️ Overdue: {$overdue}\n";
-            $text .= "📅 Today: {$todayCount} | 📆 Tomorrow: {$tomorrowCount}\n";
-            $text .= "📊 This Week: {$thisWeek}\n\n";
-            if ($stress >= 80)     $text .= "💡 You're overloaded. Try \"eisenhower matrix\" to eliminate tasks.";
-            elseif ($stress >= 60) $text .= "💡 Heavy workload. Focus on Q1 (urgent + important) first.";
-            elseif ($stress >= 40) $text .= "💡 Manageable load. Stay focused — you'll clear this.";
-            else                   $text .= "💡 Light workload. Great time to plan ahead or set a new goal!";
+            $text .= " Total Pending: {$total}\n";
+            $text .= " High Priority: {$high} |  Overdue: {$overdue}\n";
+            $text .= " Today: {$todayCount} |  Tomorrow: {$tomorrowCount}\n";
+            $text .= " This Week: {$thisWeek}\n\n";
+            if ($stress >= 80)     $text .= " You're overloaded. Try \"eisenhower matrix\" to eliminate tasks.";
+            elseif ($stress >= 60) $text .= " Heavy workload. Focus on Q1 (urgent + important) first.";
+            elseif ($stress >= 40) $text .= " Manageable load. Stay focused  you'll clear this.";
+            else                   $text .= " Light workload. Great time to plan ahead or set a new goal!";
         } else {
             $text  = "{$emoji} **ANALISIS BEBAN KERJA**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $text .= "\n\n";
             $text .= "Level Stress: {$level} ({$stress}/100)\n\n";
-            $text .= "📋 Total Pending: {$total}\n";
-            $text .= "🔴 Prioritas Tinggi: {$high} | ⚠️ Terlambat: {$overdue}\n";
-            $text .= "📅 Hari Ini: {$todayCount} | 📆 Besok: {$tomorrowCount}\n";
-            $text .= "📊 Minggu Ini: {$thisWeek}\n\n";
-            if ($stress >= 80)     $text .= "💡 Anda overload. Coba \"eisenhower matrix\" untuk eliminasi tugas.";
-            elseif ($stress >= 60) $text .= "💡 Beban berat. Fokus ke Q1 (mendesak + penting) dulu.";
-            elseif ($stress >= 40) $text .= "💡 Beban bisa dikelola. Tetap fokus.";
-            else                   $text .= "💡 Beban ringan. Waktu yang tepat untuk merencanakan!";
+            $text .= " Total Pending: {$total}\n";
+            $text .= " Prioritas Tinggi: {$high} |  Terlambat: {$overdue}\n";
+            $text .= " Hari Ini: {$todayCount} |  Besok: {$tomorrowCount}\n";
+            $text .= " Minggu Ini: {$thisWeek}\n\n";
+            if ($stress >= 80)     $text .= " Anda overload. Coba \"eisenhower matrix\" untuk eliminasi tugas.";
+            elseif ($stress >= 60) $text .= " Beban berat. Fokus ke Q1 (mendesak + penting) dulu.";
+            elseif ($stress >= 40) $text .= " Beban bisa dikelola. Tetap fokus.";
+            else                   $text .= " Beban ringan. Waktu yang tepat untuk merencanakan!";
         }
 
         return $this->respond($text, null, ['eisenhower', 'focus_mode', 'reschedule_overdue']);
@@ -2606,43 +2645,43 @@ class LocalAiEngine
         $priority = strtoupper($task->priority ?? 'medium');
 
         if ($this->lang === 'en') {
-            $text  = "🔍 **TASK ANALYSIS**\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            $text .= "📌 Title: \"{$task->judul}\"\n";
-            $text .= "📊 Priority: {$priority}\n";
-            $text .= "📋 Status: " . ($task->is_completed ? '✅ Completed' : '⬜ Pending') . "\n";
-            if ($task->deskripsi) $text .= "📝 Desc: {$task->deskripsi}\n";
+            $text  = " **TASK ANALYSIS**\n";
+            $text .= "\n";
+            $text .= " Title: \"{$task->judul}\"\n";
+            $text .= " Priority: {$priority}\n";
+            $text .= " Status: " . ($task->is_completed ? ' Completed' : ' Pending') . "\n";
+            if ($task->deskripsi) $text .= " Desc: {$task->deskripsi}\n";
             if ($deadline) {
-                $text .= "📅 Deadline: {$deadline->format('d M Y H:i')}\n";
+                $text .= " Deadline: {$deadline->format('d M Y H:i')}\n";
                 if (!$task->is_completed) {
                     if ($deadline->isPast()) {
                         $days = $this->now->diffInDays($deadline);
-                        $text .= "⚠️ OVERDUE by {$days} day(s)!\n";
+                        $text .= " OVERDUE by {$days} day(s)!\n";
                     } else {
-                        $text .= "⏳ Remaining: " . $this->now->diffForHumans($deadline, ['parts' => 2]) . "\n";
+                        $text .= " Remaining: " . $this->now->diffForHumans($deadline, ['parts' => 2]) . "\n";
                     }
                 }
-            } else $text .= "📅 Deadline: Not set\n";
-            $text .= "🆔 ID: {$task->id}\n";
+            } else $text .= " Deadline: Not set\n";
+            $text .= " ID: {$task->id}\n";
         } else {
-            $text  = "🔍 **ANALISIS TUGAS**\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            $text .= "📌 Judul: \"{$task->judul}\"\n";
-            $text .= "📊 Prioritas: {$priority}\n";
-            $text .= "📋 Status: " . ($task->is_completed ? '✅ Selesai' : '⬜ Belum') . "\n";
-            if ($task->deskripsi) $text .= "📝 Deskripsi: {$task->deskripsi}\n";
+            $text  = " **ANALISIS TUGAS**\n";
+            $text .= "\n";
+            $text .= " Judul: \"{$task->judul}\"\n";
+            $text .= " Prioritas: {$priority}\n";
+            $text .= " Status: " . ($task->is_completed ? ' Selesai' : ' Belum') . "\n";
+            if ($task->deskripsi) $text .= " Deskripsi: {$task->deskripsi}\n";
             if ($deadline) {
-                $text .= "📅 Deadline: {$deadline->format('d M Y H:i')}\n";
+                $text .= " Deadline: {$deadline->format('d M Y H:i')}\n";
                 if (!$task->is_completed) {
                     if ($deadline->isPast()) {
                         $days = $this->now->diffInDays($deadline);
-                        $text .= "⚠️ TERLAMBAT {$days} hari!\n";
+                        $text .= " TERLAMBAT {$days} hari!\n";
                     } else {
-                        $text .= "⏳ Sisa: " . $this->now->diffForHumans($deadline, ['parts' => 2]) . "\n";
+                        $text .= " Sisa: " . $this->now->diffForHumans($deadline, ['parts' => 2]) . "\n";
                     }
                 }
-            } else $text .= "📅 Deadline: Belum diatur\n";
-            $text .= "🆔 ID: {$task->id}\n";
+            } else $text .= " Deadline: Belum diatur\n";
+            $text .= " ID: {$task->id}\n";
         }
 
         return $this->respond($text);
@@ -2661,29 +2700,29 @@ class LocalAiEngine
         $habits = collect($titleCounts)->filter(fn($v) => $v['count'] >= 2)->sortByDesc('count');
 
         if ($this->lang === 'en') {
-            $text  = "🔄 **HABIT TRACKER**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $text  = " **HABIT TRACKER**, {$this->userName}\n";
+            $text .= "\n\n";
             if ($habits->isEmpty()) {
-                $text .= "No recurring patterns yet.\n\n💡 Suggested habits:\n";
-                $text .= "• \"Daily standup\" | • \"Exercise\" | • \"Read 30 min\"\n";
+                $text .= "No recurring patterns yet.\n\n Suggested habits:\n";
+                $text .= " \"Daily standup\" |  \"Exercise\" |  \"Read 30 min\"\n";
             } else {
                 foreach ($habits->take(8)->toArray() as $h) {
                     $rate   = $h['count'] > 0 ? (int) round(($h['completed'] / $h['count']) * 100) : 0;
-                    $streak = $rate >= 80 ? '🔥' : ($rate >= 50 ? '⚡' : '💤');
-                    $text  .= "{$streak} \"{$h['title']}\" — {$h['count']}x created, {$h['completed']}x done ({$rate}%)\n";
+                    $streak = $rate >= 80 ? '' : ($rate >= 50 ? '' : '');
+                    $text  .= "{$streak} \"{$h['title']}\"  {$h['count']}x created, {$h['completed']}x done ({$rate}%)\n";
                 }
             }
         } else {
-            $text  = "🔄 **PELACAK KEBIASAAN**, {$this->userName}\n";
-            $text .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $text  = " **PELACAK KEBIASAAN**, {$this->userName}\n";
+            $text .= "\n\n";
             if ($habits->isEmpty()) {
-                $text .= "Belum ada pola berulang.\n\n💡 Saran kebiasaan:\n";
-                $text .= "• \"Daily standup\" | • \"Olahraga\" | • \"Baca 30 menit\"\n";
+                $text .= "Belum ada pola berulang.\n\n Saran kebiasaan:\n";
+                $text .= " \"Daily standup\" |  \"Olahraga\" |  \"Baca 30 menit\"\n";
             } else {
                 foreach ($habits->take(8)->toArray() as $h) {
                     $rate   = $h['count'] > 0 ? (int) round(($h['completed'] / $h['count']) * 100) : 0;
-                    $streak = $rate >= 80 ? '🔥' : ($rate >= 50 ? '⚡' : '💤');
-                    $text  .= "{$streak} \"{$h['title']}\" — {$h['count']}x dibuat, {$h['completed']}x selesai ({$rate}%)\n";
+                    $streak = $rate >= 80 ? '' : ($rate >= 50 ? '' : '');
+                    $text  .= "{$streak} \"{$h['title']}\"  {$h['count']}x dibuat, {$h['completed']}x selesai ({$rate}%)\n";
                 }
             }
         }
@@ -2723,25 +2762,25 @@ class LocalAiEngine
 
         if (empty($suggestions)) {
             return $this->respond($this->t(
-                "✅ Semua prioritas sudah optimal, {$this->userName}.",
-                "✅ All priorities are already optimal, {$this->userName}."
+                " Semua prioritas sudah optimal, {$this->userName}.",
+                " All priorities are already optimal, {$this->userName}."
             ));
         }
 
-        $header = $this->t("🎯 Saran Prioritas Cerdas:\n\n", "🎯 Smart Priority Suggestions:\n\n");
+        $header = $this->t(" Saran Prioritas Cerdas:\n\n", " Smart Priority Suggestions:\n\n");
         $lines  = [];
         foreach ($suggestions as $s) {
-            $lines[] = "• \"{$s['task']->judul}\" — " . strtoupper($s['from']) . " → " . strtoupper($s['to']) . " ({$s['reason']})";
+            $lines[] = " \"{$s['task']->judul}\"  " . strtoupper($s['from']) . " → " . strtoupper($s['to']) . " ({$s['reason']})";
         }
-        $footer = $this->t("\n\n💡 Ucapkan \"ubah prioritas [nama] ke high\" untuk menerapkan.",
-                            "\n\n💡 Say \"change priority of [task] to high\" to apply.");
+        $footer = $this->t("\n\n Ucapkan \"ubah prioritas [nama] ke high\" untuk menerapkan.",
+                            "\n\n Say \"change priority of [task] to high\" to apply.");
 
         return $this->respond($header . implode("\n", $lines) . $footer);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // MULTI-INTENT CREATE
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseMultiCreate(string $msg, string $original): ?array
     {
@@ -2788,9 +2827,9 @@ class LocalAiEngine
         return $this->respond($message, ['type' => 'batch_create', 'data' => ['tasks' => $actions]]);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // CREATE (with duplicate check)
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseCreateWithDuplicateCheck(string $msg, string $original): ?array
     {
@@ -2805,10 +2844,10 @@ class LocalAiEngine
             $existingTitle = mb_strtolower($existing->judul);
             similar_text($newTitle, $existingTitle, $similarity);
             if ($similarity >= 80) {
-                $status = $existing->is_completed ? '✅' : '⬜';
+                $status = $existing->is_completed ? '' : '';
                 $warning = $this->t(
-                    "⚠️ Tugas serupa sudah ada: {$status} \"{$existing->judul}\" (ID: {$existing->id}). Tetap dibuat?",
-                    "⚠️ Similar task exists: {$status} \"{$existing->judul}\" (ID: {$existing->id}). Create anyway?"
+                    " Tugas serupa sudah ada: {$status} \"{$existing->judul}\" (ID: {$existing->id}). Tetap dibuat?",
+                    " Similar task exists: {$status} \"{$existing->judul}\" (ID: {$existing->id}). Create anyway?"
                 );
                 $decoded['message'] = $warning . "\n\n" . ($decoded['message'] ?? '');
                 $create['content']  = json_encode($decoded);
@@ -2860,9 +2899,12 @@ class LocalAiEngine
 
     private function handleConversationalFlow(string $msg, string $original): ?array
     {
-        if (!$this->memory) return null;
+        if (!$this->memory) {
+            Log::warning('Jarvis: handleConversationalFlow skipped - memory service is NULL');
+            return null;
+        }
 
-        // ── 0. Global Exit / Cancel Handler ──────────────────────────
+        //  0. Global Exit / Cancel Handler 
         if ($this->isCancel($msg)) {
             $sessions = ['creating_task_state', 'editing_task_state', 'deleting_task_state', 'listing_task_state'];
             $active = false;
@@ -2880,19 +2922,22 @@ class LocalAiEngine
             }
         }
 
-        // ── 1. Task Creation Session ────────────────────────────────
+        //  1. Task Creation Session 
         $createState = $this->memory->recall('context', 'creating_task_state');
-        if ($createState) return $this->handleCreationSession($msg, $original, $createState);
+        if ($createState) {
+            Log::debug('Jarvis: Active creation session found', ['step' => $createState['step'] ?? 'unknown']);
+            return $this->handleCreationSession($msg, $original, $createState);
+        }
 
-        // ── 2. Task Editing Session ─────────────────────────────────
+        //  2. Task Editing Session 
         $editState = $this->memory->recall('context', 'editing_task_state');
         if ($editState) return $this->handleEditingSession($msg, $original, $editState);
 
-        // ── 3. Task Deleting Session ────────────────────────────────
+        //  3. Task Deleting Session 
         $deleteState = $this->memory->recall('context', 'deleting_task_state');
         if ($deleteState) return $this->handleDeletingSession($msg, $original, $deleteState);
 
-        // ── 4. Task Listing Session ─────────────────────────────────
+        //  4. Task Listing Session 
         $listState = $this->memory->recall('context', 'listing_task_state');
         if ($listState) return $this->handleListingSession($msg, $original, $listState);
 
@@ -2904,32 +2949,37 @@ class LocalAiEngine
         $data = $state['data'] ?? [];
         $currentStep = $state['step'] ?? 'ask_title';
 
-        // 1. Greedy match: Scan for ANY missing info first, regardless of the current step
-        $potentialDate = $this->parseDeadline($msg);
-        if ($potentialDate && empty($data['date'])) {
-            $data['date'] = $potentialDate->format('Y-m-d');
-            if (preg_match('/\b(?:jam|pagi|siang|sore|malam|at|on)\b/i', $msg)) {
-                $data['time'] = $potentialDate->format('H:i');
+        // v13.3: Only run greedy extraction OUTSIDE of ask_title step.
+        // During ask_title, the user's full input IS the title — do not parse dates/priority from it.
+        if ($currentStep !== 'ask_title') {
+            $potentialDate = $this->parseDeadline($msg);
+            if ($potentialDate && empty($data['date'])) {
+                $data['date'] = $potentialDate->format('Y-m-d');
+                if (preg_match('/\b(?:jam|pagi|siang|sore|malam|at|on)\b/i', $msg)) {
+                    $data['time'] = $potentialDate->format('H:i');
+                }
+            }
+
+            $potentialPriority = $this->parsePriorityValue($msg);
+            if ($potentialPriority && empty($data['priority'])) {
+                $data['priority'] = $potentialPriority;
             }
         }
 
-        $potentialPriority = $this->parsePriorityValue($msg);
-        if ($potentialPriority && empty($data['priority'])) {
-            $data['priority'] = $potentialPriority;
-        }
-
-        // 2. Process the input for the specific step if not already captured by greedy match
+        // 2. Process the input for the specific step
         switch ($currentStep) {
             case 'ask_title':
-                // Check if they are providing the title (e.g., "Judulnya Meeting")
-                $cleaned = $this->cleanTitle($msg);
+                // v13.3: Use the ORIGINAL unprocessed input as title.
+                // cleanTitle only removes conversational prefixes like "judulnya", NOT content words.
+                $cleaned = $this->cleanTitle($original);
                 if (!empty($cleaned)) {
                     $data['judul'] = $cleaned;
                 }
                 break;
             case 'ask_description':
                 if (!$this->isNegative($msg)) {
-                    // Only set description if it doesn't look like they are answering a different step
+                    $potentialDate = $this->parseDeadline($msg) ?? null;
+                    $potentialPriority = $this->parsePriorityValue($msg) ?? null;
                     if (!$potentialDate && !$potentialPriority) {
                         $data['deskripsi'] = $original;
                     }
@@ -2938,6 +2988,7 @@ class LocalAiEngine
                 }
                 break;
             case 'ask_date':
+                $potentialDate = $this->parseDeadline($msg);
                 if ($potentialDate) {
                     $data['date'] = $potentialDate->format('Y-m-d');
                 }
@@ -2949,6 +3000,7 @@ class LocalAiEngine
                 }
                 break;
             case 'ask_priority':
+                $potentialPriority = $this->parsePriorityValue($msg);
                 if ($potentialPriority) {
                     $data['priority'] = $potentialPriority;
                 }
@@ -3056,12 +3108,17 @@ class LocalAiEngine
 
     private function isCancel(string $msg): bool
     {
-        return preg_match('/\b(batal|cancel|stop|berhenti|gah|ojo|keluar|exit)\b/i', $msg);
+        $msg = trim($msg);
+        // Only cancel if it's the ONLY word, or a very specific phrase
+        $exactWords = ['batal', 'cancel', 'stop', 'exit', 'keluar', 'udahan', 'berhenti', 'close'];
+        if (in_array(strtolower($msg), $exactWords)) return true;
+
+        return preg_match('/^(batalkan sesi|cancel session|keluar dari sesi|batal saja|tidak jadi)$/i', $msg);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // UPDATE OPERATIONS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseUpdateDeadline(string $msg): ?array
     {
@@ -3293,9 +3350,9 @@ class LocalAiEngine
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // TOGGLE / DELETE
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseToggle(string $msg, string $original): ?array
     {
@@ -3312,7 +3369,7 @@ class LocalAiEngine
 
         $status    = $match->is_completed ? 'belum selesai' : 'selesai';
         $remaining = $this->todos->where('is_completed', false)->count() - ($match->is_completed ? 0 : 1);
-        $extra     = $remaining > 0 ? " Sisa {$remaining} tugas pending." : " Semua tugas sudah selesai! 🎉";
+        $extra     = $remaining > 0 ? " Sisa {$remaining} tugas pending." : " Semua tugas sudah selesai! ";
 
         return $this->respond(
             "Baik {$this->userName}, \"{$match->judul}\" ditandai {$status}.{$extra}",
@@ -3349,9 +3406,9 @@ class LocalAiEngine
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // BULK OPERATIONS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseBulkOperation(string $msg): ?array
     {
@@ -3400,9 +3457,9 @@ class LocalAiEngine
         return null;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // REMINDER
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseReminder(string $msg, string $original): ?array
     {
@@ -3424,7 +3481,7 @@ class LocalAiEngine
         if (!$deadline) $deadline = $this->now->copy()->addHour();
 
         $data = [
-            'judul'    => "🔔 Reminder: {$title}",
+            'judul'    => " Reminder: {$title}",
             'deskripsi'=> "Pengingat dari Jarvis: {$title}",
             'deadline' => $deadline->format('Y-m-d H:i:s'),
             'priority' => 'high',
@@ -3436,9 +3493,9 @@ class LocalAiEngine
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // TEMPLATE
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseTaskTemplate(string $msg, string $original): ?array
     {
@@ -3504,8 +3561,8 @@ class LocalAiEngine
         if (!$selected) {
             $names = implode(', ', array_keys($templates));
             return $this->respond($this->t(
-                "📋 Template tersedia: **{$names}**\n\nContoh: \"template meeting\" atau \"template ta\" untuk tugas akhir.",
-                "📋 Available templates: **{$names}**\n\nExample: \"template sprint\" to create sprint tasks."
+                " Template tersedia: **{$names}**\n\nContoh: \"template meeting\" atau \"template ta\" untuk tugas akhir.",
+                " Available templates: **{$names}**\n\nExample: \"template sprint\" to create sprint tasks."
             ));
         }
 
@@ -3514,17 +3571,17 @@ class LocalAiEngine
 
         return $this->respond(
             $this->t(
-                "📋 Template \"{$templateName}\" diterapkan! {$count} tugas dibuat. Ada lagi?",
-                "📋 Template \"{$templateName}\" applied! {$count} tasks created."
+                " Template \"{$templateName}\" diterapkan! {$count} tugas dibuat. Ada lagi?",
+                " Template \"{$templateName}\" applied! {$count} tasks created."
             ),
             ['type' => 'batch_create', 'data' => ['tasks' => $taskActions]],
             ['daily_planner', 'focus_mode']
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // RESCHEDULE OVERDUE
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseRescheduleOverdue(string $msg): ?array
     {
@@ -3534,7 +3591,7 @@ class LocalAiEngine
             ->filter(fn($t) => $t->deadline && Carbon::parse($t->deadline)->isPast());
 
         if ($overdue->isEmpty()) {
-            return $this->respond("Tidak ada tugas terlambat saat ini, {$this->userName}. Semua tugas tepat waktu! 🌟");
+            return $this->respond("Tidak ada tugas terlambat saat ini, {$this->userName}. Semua tugas tepat waktu! ");
         }
 
         $targetDate = $this->parseDeadline($msg);
@@ -3550,9 +3607,9 @@ class LocalAiEngine
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // FILTERED LIST / SEARCH / SCHEDULE / STATS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondFilteredList(string $msg): array
     {
@@ -3597,11 +3654,11 @@ class LocalAiEngine
 
         $lines = [];
         foreach ($filtered->take(20) as $t) {
-            $status  = $t->is_completed ? '✅' : '⬜';
+            $status  = $t->is_completed ? '' : '';
             $p       = strtoupper($t->priority ?? 'medium');
             $dl      = $t->deadline ? Carbon::parse($t->deadline)->format('d M Y H:i') : 'Tanpa deadline';
-            $overdue = (!$t->is_completed && $t->deadline && Carbon::parse($t->deadline)->isPast()) ? ' ⚠️' : '';
-            $lines[] = "{$status} [{$p}] \"{$t->judul}\" — {$dl}{$overdue}";
+            $overdue = (!$t->is_completed && $t->deadline && Carbon::parse($t->deadline)->isPast()) ? ' ' : '';
+            $lines[] = "{$status} [{$p}] \"{$t->judul}\"  {$dl}{$overdue}";
         }
 
         $text = "{$label} ({$filtered->count()}):\n\n" . implode("\n", $lines);
@@ -3666,14 +3723,14 @@ class LocalAiEngine
         $lines = [];
         foreach ($results->take(10) as $index => $t) {
             $isSemantic = in_array($index, $gpuIds);
-            $status  = $t->is_completed ? '✅' : '⬜';
+            $status  = $t->is_completed ? '' : '';
             $p       = strtoupper($t->priority ?? 'medium');
-            $tag     = $isSemantic ? ' [🧠 Semantic]' : '';
+            $tag     = $isSemantic ? ' [ Semantic]' : '';
             $lines[] = "{$status} [{$p}]{$tag} \"{$t->judul}\"";
         }
 
         $header = $this->computeDevice === 'gpu' 
-            ? "🚀 GPU Accelerated Search Results for \"{$searchTerm}\":"
+            ? " GPU Accelerated Search Results for \"{$searchTerm}\":"
             : "Hasil pencarian \"{$searchTerm}\":";
 
         return $this->respond(
@@ -3699,27 +3756,27 @@ class LocalAiEngine
         $text  = "Jadwal {$dayLabel} ({$targetDate->format('l, d M Y')}), {$this->userName}:\n\n";
 
         if ($overdue->isNotEmpty()) {
-            $text .= "⚠️ TERLAMBAT ({$overdue->count()}):\n";
+            $text .= " TERLAMBAT ({$overdue->count()}):\n";
             foreach ($overdue->take(5) as $t) {
                 $p     = strtoupper($t->priority ?? 'medium');
-                $text .= "  [{$p}] \"{$t->judul}\" — seharusnya " . Carbon::parse($t->deadline)->format('d M') . "\n";
+                $text .= "  [{$p}] \"{$t->judul}\"  seharusnya " . Carbon::parse($t->deadline)->format('d M') . "\n";
             }
             $text .= "\n";
         }
 
         if ($tasks->isNotEmpty()) {
-            $text .= "📋 TUGAS {$dayLabel} ({$tasks->count()}):\n";
+            $text .= " TUGAS {$dayLabel} ({$tasks->count()}):\n";
             foreach ($tasks as $t) {
                 $p     = strtoupper($t->priority ?? 'medium');
                 $time  = Carbon::parse($t->deadline)->format('H:i');
-                $text .= "  {$time} — [{$p}] \"{$t->judul}\"\n";
+                $text .= "  {$time}  [{$p}] \"{$t->judul}\"\n";
             }
         } else {
             $text .= "Tidak ada tugas terjadwal untuk {$dayLabel}.\n";
         }
 
         if ($noDl->isNotEmpty() && $noDl->count() <= 5) {
-            $text .= "\n📌 TANPA DEADLINE ({$noDl->count()}):\n";
+            $text .= "\n TANPA DEADLINE ({$noDl->count()}):\n";
             foreach ($noDl->take(5) as $t) $text .= "  \"{$t->judul}\"\n";
         }
 
@@ -3779,14 +3836,14 @@ class LocalAiEngine
         foreach ($paginated as $t) {
             $p       = strtoupper($t->priority ?? 'medium');
             $dl      = $t->deadline ? Carbon::parse($t->deadline)->format('d M Y') : $this->t('Tanpa deadline','No deadline');
-            $overdue = ($t->deadline && Carbon::parse($t->deadline)->isPast()) ? ' ⚠️' : '';
-            $lines[] = "{$idx}. ⬜ [{$p}] \"{$t->judul}\" — {$dl}{$overdue}";
+            $overdue = ($t->deadline && Carbon::parse($t->deadline)->isPast()) ? ' ' : '';
+            $lines[] = "{$idx}.  [{$p}] \"{$t->judul}\"  {$dl}{$overdue}";
             $idx++;
         }
 
         if ($completed->isNotEmpty() && $offset === 0) {
             $lines[] = '';
-            foreach ($completed->take(5) as $t) $lines[] = "✅ \"{$t->judul}\"";
+            foreach ($completed->take(5) as $t) $lines[] = " \"{$t->judul}\"";
             if ($completed->count() > 5) {
                 $rem = $completed->count() - 5;
                 $lines[] = $this->t("...dan $rem tugas selesai lainnya",
@@ -3833,26 +3890,26 @@ class LocalAiEngine
         $completionRate = $total > 0 ? round(($completed / $total) * 100) : 0;
 
         if ($this->lang === 'en') {
-            $text  = "📊 Task Report, {$this->userName}:\n\n";
+            $text  = " Task Report, {$this->userName}:\n\n";
             $text .= "Total: {$total} | Pending: {$pending} | Done: {$completed}\n";
             $text .= "Completion rate: {$completionRate}%\n\n";
-            $text .= "Priority — High: {$high} | Medium: {$medium} | Low: {$low}\n";
+            $text .= "Priority  High: {$high} | Medium: {$medium} | Low: {$low}\n";
             $text .= "Overdue: {$overdue} | Today: {$todayTasks} | Tomorrow: {$tomorrowTasks}\n\n";
-            if ($overdue > 0)         $text .= "⚠️ {$overdue} overdue task(s). Complete or reschedule soon.";
-            elseif ($completionRate >= 80) $text .= "🎉 Outstanding! {$completionRate}% completion rate.";
-            elseif ($pending == 0)    $text .= "✅ All tasks completed. Well done!";
-            elseif ($high > 3)        $text .= "📌 {$high} high-priority tasks. Focus on them one at a time.";
+            if ($overdue > 0)         $text .= " {$overdue} overdue task(s). Complete or reschedule soon.";
+            elseif ($completionRate >= 80) $text .= " Outstanding! {$completionRate}% completion rate.";
+            elseif ($pending == 0)    $text .= " All tasks completed. Well done!";
+            elseif ($high > 3)        $text .= " {$high} high-priority tasks. Focus on them one at a time.";
             else                       $text .= "Everything is on track. Anything else I can help with?";
         } else {
-            $text  = "📊 Laporan Tugas, {$this->userName}:\n\n";
+            $text  = " Laporan Tugas, {$this->userName}:\n\n";
             $text .= "Total: {$total} | Pending: {$pending} | Selesai: {$completed}\n";
             $text .= "Completion rate: {$completionRate}%\n\n";
-            $text .= "Prioritas — Tinggi: {$high} | Sedang: {$medium} | Rendah: {$low}\n";
+            $text .= "Prioritas  Tinggi: {$high} | Sedang: {$medium} | Rendah: {$low}\n";
             $text .= "Terlambat: {$overdue} | Hari ini: {$todayTasks} | Besok: {$tomorrowTasks}\n\n";
-            if ($overdue > 0)         $text .= "⚠️ Ada {$overdue} tugas terlambat. Segera selesaikan atau ubah deadline-nya.";
-            elseif ($completionRate >= 80) $text .= "🎉 Luar biasa! Tingkat penyelesaian {$completionRate}%. Terus semangat!";
-            elseif ($pending == 0)    $text .= "✅ Semua tugas sudah selesai. Kerja bagus, {$this->userName}!";
-            elseif ($high > 3)        $text .= "📌 Anda punya {$high} tugas prioritas tinggi. Fokus satu per satu.";
+            if ($overdue > 0)         $text .= " Ada {$overdue} tugas terlambat. Segera selesaikan atau ubah deadline-nya.";
+            elseif ($completionRate >= 80) $text .= " Luar biasa! Tingkat penyelesaian {$completionRate}%. Terus semangat!";
+            elseif ($pending == 0)    $text .= " Semua tugas sudah selesai. Kerja bagus, {$this->userName}!";
+            elseif ($high > 3)        $text .= " Anda punya {$high} tugas prioritas tinggi. Fokus satu per satu.";
             else                       $text .= "Semua berjalan lancar. Ada yang perlu dibantu?";
         }
 
@@ -3873,23 +3930,23 @@ class LocalAiEngine
         $todayCompleted = $this->todos->where('is_completed', true)
             ->filter(fn($t) => $t->updated_at && Carbon::parse($t->updated_at)->isToday())->count();
 
-        $text  = "📊 " . $this->t("Laporan Produktivitas","Productivity Report") . ", {$this->userName}:\n\n";
-        $text .= "✅ Completion Rate: {$rate}% ({$completed}/{$total})\n";
-        $text .= "🔴 " . $this->t("Prioritas Tinggi","High Priority") . ": {$highRate}% ({$highCompleted}/{$highTotal})\n";
-        $text .= "⚠️ " . $this->t("Terlambat","Overdue") . ": {$overdue}\n";
-        $text .= "📅 " . $this->t("Selesai hari ini","Done today") . ": {$todayCompleted}\n\n";
+        $text  = " " . $this->t("Laporan Produktivitas","Productivity Report") . ", {$this->userName}:\n\n";
+        $text .= " Completion Rate: {$rate}% ({$completed}/{$total})\n";
+        $text .= " " . $this->t("Prioritas Tinggi","High Priority") . ": {$highRate}% ({$highCompleted}/{$highTotal})\n";
+        $text .= " " . $this->t("Terlambat","Overdue") . ": {$overdue}\n";
+        $text .= " " . $this->t("Selesai hari ini","Done today") . ": {$todayCompleted}\n\n";
 
-        if ($rate >= 80)       $text .= "🌟 " . $this->t("Luar biasa! Tingkat penyelesaian sangat tinggi!","Outstanding! Very high completion rate!");
-        elseif ($rate >= 50)   $text .= "💪 " . $this->t("Progres bagus! Fokus tugas prioritas tinggi.","Good progress! Focus on high-priority tasks.");
-        elseif ($pending > 0)  $text .= "💡 " . $this->t("Mulai dari tugas terkecil atau paling mendesak.","Start with the smallest or most urgent task.");
-        else                    $text .= "🎉 " . $this->t("Tidak ada tugas pending. Mau buat rencana baru?","No pending tasks. Want to set a new goal?");
+        if ($rate >= 80)       $text .= " " . $this->t("Luar biasa! Tingkat penyelesaian sangat tinggi!","Outstanding! Very high completion rate!");
+        elseif ($rate >= 50)   $text .= " " . $this->t("Progres bagus! Fokus tugas prioritas tinggi.","Good progress! Focus on high-priority tasks.");
+        elseif ($pending > 0)  $text .= " " . $this->t("Mulai dari tugas terkecil atau paling mendesak.","Start with the smallest or most urgent task.");
+        else                    $text .= " " . $this->t("Tidak ada tugas pending. Mau buat rencana baru?","No pending tasks. Want to set a new goal?");
 
         return $this->respond($text, null, ['weekly_review', 'streak', 'eisenhower']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // FUZZY TASK FINDER with Levenshtein + word overlap
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function findTask(string $query): ?Todo
     {
@@ -3973,15 +4030,15 @@ class LocalAiEngine
         return $bestMatch;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // ADVANCED DATE/TIME PARSER
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function parseDeadline(string $text): ?Carbon
     {
         $today = $this->now->copy()->startOfDay();
 
-        // ── Relative keywords ──────────────────────────────────────
+        //  Relative keywords 
         if (preg_match('/\b(besok|tomorrow)\b/i', $text))
             return $this->applyTime(\Illuminate\Support\Carbon::parse($today->copy()->addDay()), $text);
         if (preg_match('/\b(lusa|day after tomorrow)\b/i', $text))
@@ -3991,7 +4048,7 @@ class LocalAiEngine
         if (preg_match('/\b(bulan depan|next month)\b/i', $text))
             return $this->applyTime(\Illuminate\Support\Carbon::parse($today->copy()->addMonth()), $text);
 
-        // ── End of period ─────────────────────────────────────────
+        //  End of period 
         if (preg_match('/\b(akhir minggu|end of week|weekend)\b/i', $text))
             return $this->now->copy()->endOfWeek()->setTime(23, 59);
         if (preg_match('/\b(akhir bulan|end of month)\b/i', $text))
@@ -3999,7 +4056,7 @@ class LocalAiEngine
         if (preg_match('/\b(akhir tahun|end of year)\b/i', $text))
             return $this->now->copy()->endOfYear()->setTime(23, 59);
 
-        // ── Quarter references ─────────────────────────────────────
+        //  Quarter references 
         if (preg_match('/\b(akhir|end of)?\s*Q([1-4])\b/i', $text, $m)) {
             $q         = (int) $m[2];
             $endMonths = [3, 6, 9, 12];
@@ -4009,7 +4066,7 @@ class LocalAiEngine
             return Carbon::createFromDate($year, $endMonth, 1)->endOfMonth()->setTime(23, 59);
         }
 
-        // ── "N hari/minggu/bulan lagi" ─────────────────────────────
+        //  "N hari/minggu/bulan lagi" 
         if (preg_match('/(\d+)\s*(hari|day|days)\s*(lagi|from now|later)?/i', $text, $m))
             return $this->applyTime(\Illuminate\Support\Carbon::parse($today->copy()->addDays((int) $m[1])), $text);
         if (preg_match('/(\d+)\s*(minggu|week|weeks)\s*(lagi|from now|later)?/i', $text, $m))
@@ -4021,7 +4078,7 @@ class LocalAiEngine
         if (preg_match('/(\d+)\s*(menit|minute|minutes|min)\s*(lagi|from now|later)?/i', $text, $m))
             return \Illuminate\Support\Carbon::parse($this->now->copy()->addMinutes((int) $m[1]));
 
-        // ── Day names ─────────────────────────────────────────────
+        //  Day names 
         $days = [
             'senin'=>'Monday','selasa'=>'Tuesday','rabu'=>'Wednesday',
             'kamis'=>'Thursday','jumat'=>'Friday','sabtu'=>'Saturday',
@@ -4040,7 +4097,7 @@ class LocalAiEngine
             }
         }
 
-        // ── Indonesian month names ─────────────────────────────────
+        //  Indonesian month names 
         $months = [
             'januari'=>1,'februari'=>2,'maret'=>3,'april'=>4,'mei'=>5,'juni'=>6,
             'juli'=>7,'agustus'=>8,'september'=>9,'oktober'=>10,'november'=>11,'desember'=>12,
@@ -4056,21 +4113,21 @@ class LocalAiEngine
             }
         }
 
-        // ── ISO date: 2026-04-01 ──────────────────────────────────
+        //  ISO date: 2026-04-01 
         if (preg_match('/(\d{4})-(\d{1,2})-(\d{1,2})/', $text, $m)) {
             try { return $this->applyTime(Carbon::createFromDate($m[1], $m[2], $m[3]), $text); } catch (\Exception $e) {}
         }
 
-        // ── DD/MM/YYYY or DD-MM-YYYY ─────────────────────────────
+        //  DD/MM/YYYY or DD-MM-YYYY 
         if (preg_match('/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/', $text, $m)) {
             try { return $this->applyTime(Carbon::createFromDate($m[3], $m[2], $m[1]), $text); } catch (\Exception $e) {}
         }
 
-        // ── Today keyword ─────────────────────────────────────────
+        //  Today keyword 
         if (preg_match('/\b(hari ini|today)\b/i', $text))
             return $this->applyTime($today->copy(), $text);
 
-        // ── Standalone time → today ───────────────────────────────
+        //  Standalone time → today 
         if (preg_match('/\b(?:jam\s+)(\d{1,2})(?::(\d{2}))?\s*(pagi|siang|sore|malam|am|pm)\b/i', $text))
             return $this->applyTime($today->copy(), $text);
 
@@ -4116,9 +4173,9 @@ class LocalAiEngine
         return $text;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // UTILITY
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function normalize(string $text): string
     {
@@ -4248,17 +4305,19 @@ class LocalAiEngine
         $text = preg_replace('/\s+/', ' ', $text);
         $text = trim($text, ' ,.:;-');
         
-        // Comprehensive Indonesian and English conversational filler removal
-        $fillers = [
-            'judulnya itu', 'judulnya', 'namanya', 'berjudul', 'bernama', 'tentang',
-            'mengenai', 'buat tugas', 'tambah tugas', 'bikin tugas', 'tugasnya',
-            'tugas', 'task', 'todo', 'titled', 'called', 'named', 'about', 'for',
+        // v13.3: Only strip conversational PREFIXES, not content words.
+        // "tugas" is NOT a filler — "tugas mtk besok" should remain intact.
+        // Only strip command-like prefixes where user is telling the bot to create.
+        $prefixes = [
+            'judulnya itu', 'judulnya', 'namanya', 'berjudul', 'bernama',
+            'buat tugas', 'tambah tugas', 'bikin tugas', 'tugasnya',
+            'titled', 'called', 'named',
             'dengan judul', 'yang berjudul', 'kalo judulnya', 'if the title is',
-            'gawean', 'gaweane', 'iki', 'niku'
+            'gaweane', 'gawean',
         ];
         
-        foreach ($fillers as $filler) {
-            $text = preg_replace('/^' . preg_quote($filler, '/') . '\s+/i', '', $text);
+        foreach ($prefixes as $prefix) {
+            $text = preg_replace('/^' . preg_quote($prefix, '/') . '\s+/i', '', $text);
         }
 
         return trim($text);
@@ -4312,9 +4371,9 @@ class LocalAiEngine
         return 'Selamat malam Tuan';
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // GREETING & IDENTITY
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondGreeting(string $msg): array
     {
@@ -4418,10 +4477,10 @@ class LocalAiEngine
     private function respondIdentity(): array
     {
         $features = $this->t(
-            "CRUD tugas (buat/edit/hapus/cari/selesaikan), Eisenhower Matrix, jadwal Deep Work, timer Pomodoro, Mode Fokus, Rencana Harian, Pelacak Kebiasaan, Streak & Pencapaian, Goal Tracking, Saran Cerdas, Analisis Beban Kerja, Review Mingguan, Prioritisasi Cerdas, operasi massal, Template Tugas, Pengingat, Ganti Bahasa, Memory & Training — semuanya offline.",
-            "Task CRUD (create/edit/delete/search/complete), Eisenhower Matrix, Deep Work scheduling, Pomodoro timer, Focus Mode, Daily Planner, Habit Tracker, Streak & Achievements, Goal Tracking, Smart Suggestions, Workload Analysis, Weekly Review, Smart Prioritization, Bulk/Batch operations, Task Templates, Reminders, Language Switching, Memory & Training — all offline.",
-            "Nggawe, mbusak, rampungake tugas, Eisenhower Matrix, Pomodoro, Focus Mode, lan sapanunggalane — kabeh offline.",
-            "Nyieun, ngahapus, ngarengsekeun tugas, Eisenhower Matrix, Pomodoro, Focus Mode, sareng sajabina — sadaya offline."
+            "CRUD tugas (buat/edit/hapus/cari/selesaikan), Eisenhower Matrix, jadwal Deep Work, timer Pomodoro, Mode Fokus, Rencana Harian, Pelacak Kebiasaan, Streak & Pencapaian, Goal Tracking, Saran Cerdas, Analisis Beban Kerja, Review Mingguan, Prioritisasi Cerdas, operasi massal, Template Tugas, Pengingat, Ganti Bahasa, Memory & Training  semuanya offline.",
+            "Task CRUD (create/edit/delete/search/complete), Eisenhower Matrix, Deep Work scheduling, Pomodoro timer, Focus Mode, Daily Planner, Habit Tracker, Streak & Achievements, Goal Tracking, Smart Suggestions, Workload Analysis, Weekly Review, Smart Prioritization, Bulk/Batch operations, Task Templates, Reminders, Language Switching, Memory & Training  all offline.",
+            "Nggawe, mbusak, rampungake tugas, Eisenhower Matrix, Pomodoro, Focus Mode, lan sapanunggalane  kabeh offline.",
+            "Nyieun, ngahapus, ngarengsekeun tugas, Eisenhower Matrix, Pomodoro, Focus Mode, sareng sajabina  sadaya offline."
         );
 
         return $this->respond(
@@ -4440,49 +4499,49 @@ class LocalAiEngine
     {
         if ($this->lang === 'en') {
             return $this->respond(
-                "📖 Jarvis v3 Commands:\n\n" .
-                "📝 CREATE: \"Create task X tomorrow at 3pm [high]\"\n" .
-                "✅ COMPLETE: \"Mark task X as done\"\n" .
-                "🗑️ DELETE: \"Delete task X\" / \"Delete all completed\"\n" .
-                "✏️ EDIT: \"Change deadline/priority/name of X\"\n" .
-                "📋 VIEW: \"Show tasks\" / \"Overdue tasks\" / \"Today\"\n" .
-                "🔍 SEARCH: \"Find tasks about meeting\"\n" .
-                "📊 ANALYTICS: \"Stats\" / \"Weekly review\" / \"Workload\"\n" .
-                "🧭 MATRIX: \"Eisenhower matrix\"\n" .
-                "🧠 PLANNING: \"Plan my day\" / \"Deep work schedule\"\n" .
-                "⏱️ POMODORO: \"Start pomodoro\" / \"25 min focus\"\n" .
-                "🎯 FOCUS: \"Focus mode\" / \"What should I do first\"\n" .
-                "🏆 ACHIEVE: \"Show my achievements\" / \"My streak\"\n" .
-                "🎯 GOALS: \"Set goal X\" / \"Check my goals\"\n" .
-                "📋 TEMPLATE: \"Template sprint/meeting/study/ta/launch\"\n" .
-                "🔔 REMINDER: \"Remind me about X tomorrow at 9am\"\n" .
-                "🔄 BATCH: \"Update all deadlines to next week\"\n" .
-                "🤖 MULTI: \"Create tasks A, B, and C\"\n" .
-                "💡 SUGGEST: \"Smart suggestions\" / \"Tips\"\n" .
-                "❤️ MOOD: \"I'm stressed\" / \"Feeling burnout\""
+                " Jarvis v3 Commands:\n\n" .
+                " CREATE: \"Create task X tomorrow at 3pm [high]\"\n" .
+                " COMPLETE: \"Mark task X as done\"\n" .
+                " DELETE: \"Delete task X\" / \"Delete all completed\"\n" .
+                " EDIT: \"Change deadline/priority/name of X\"\n" .
+                " VIEW: \"Show tasks\" / \"Overdue tasks\" / \"Today\"\n" .
+                " SEARCH: \"Find tasks about meeting\"\n" .
+                " ANALYTICS: \"Stats\" / \"Weekly review\" / \"Workload\"\n" .
+                " MATRIX: \"Eisenhower matrix\"\n" .
+                " PLANNING: \"Plan my day\" / \"Deep work schedule\"\n" .
+                " POMODORO: \"Start pomodoro\" / \"25 min focus\"\n" .
+                " FOCUS: \"Focus mode\" / \"What should I do first\"\n" .
+                " ACHIEVE: \"Show my achievements\" / \"My streak\"\n" .
+                " GOALS: \"Set goal X\" / \"Check my goals\"\n" .
+                " TEMPLATE: \"Template sprint/meeting/study/ta/launch\"\n" .
+                " REMINDER: \"Remind me about X tomorrow at 9am\"\n" .
+                " BATCH: \"Update all deadlines to next week\"\n" .
+                " MULTI: \"Create tasks A, B, and C\"\n" .
+                " SUGGEST: \"Smart suggestions\" / \"Tips\"\n" .
+                " MOOD: \"I'm stressed\" / \"Feeling burnout\""
             );
         }
         return $this->respond(
-            "📖 Perintah Jarvis v3:\n\n" .
-            "📝 BUAT: \"Buat tugas X besok jam 3 sore [high]\"\n" .
-            "✅ SELESAI: \"Tandai tugas X selesai\"\n" .
-            "🗑️ HAPUS: \"Hapus tugas X\" / \"Hapus semua selesai\"\n" .
-            "✏️ EDIT: \"Ubah deadline/prioritas/nama X\"\n" .
-            "📋 LIHAT: \"Lihat tugas\" / \"Tugas overdue\" / \"Hari ini\"\n" .
-            "🔍 CARI: \"Cari tugas tentang meeting\"\n" .
-            "📊 ANALITIK: \"Statistik\" / \"Review mingguan\" / \"Beban kerja\"\n" .
-            "🧭 MATRIX: \"Eisenhower matrix\"\n" .
-            "🧠 PERENCANAAN: \"Rencana harian\" / \"Jadwal deep work\"\n" .
-            "⏱️ POMODORO: \"Mulai pomodoro\" / \"25 menit fokus\"\n" .
-            "🎯 FOKUS: \"Mode fokus\" / \"Mana yang harus duluan\"\n" .
-            "🏆 PENCAPAIAN: \"Lihat pencapaian\" / \"Streak saya\"\n" .
-            "🎯 GOAL: \"Buat goal X\" / \"Lihat goal saya\"\n" .
-            "📋 TEMPLATE: \"Template sprint/meeting/study/ta/launch\"\n" .
-            "🔔 PENGINGAT: \"Ingatkan saya X besok jam 9\"\n" .
-            "🔄 BATCH: \"Ganti semua deadline ke minggu depan\"\n" .
-            "🤖 MULTI: \"Buat tugas A, B, dan C\"\n" .
-            "💡 SARAN: \"Saran cerdas\" / \"Tips\"\n" .
-            "❤️ MOOD: \"Saya stres\" / \"Merasa burnout\""
+            " Perintah Jarvis v3:\n\n" .
+            " BUAT: \"Buat tugas X besok jam 3 sore [high]\"\n" .
+            " SELESAI: \"Tandai tugas X selesai\"\n" .
+            " HAPUS: \"Hapus tugas X\" / \"Hapus semua selesai\"\n" .
+            " EDIT: \"Ubah deadline/prioritas/nama X\"\n" .
+            " LIHAT: \"Lihat tugas\" / \"Tugas overdue\" / \"Hari ini\"\n" .
+            " CARI: \"Cari tugas tentang meeting\"\n" .
+            " ANALITIK: \"Statistik\" / \"Review mingguan\" / \"Beban kerja\"\n" .
+            " MATRIX: \"Eisenhower matrix\"\n" .
+            " PERENCANAAN: \"Rencana harian\" / \"Jadwal deep work\"\n" .
+            " POMODORO: \"Mulai pomodoro\" / \"25 menit fokus\"\n" .
+            " FOKUS: \"Mode fokus\" / \"Mana yang harus duluan\"\n" .
+            " PENCAPAIAN: \"Lihat pencapaian\" / \"Streak saya\"\n" .
+            " GOAL: \"Buat goal X\" / \"Lihat goal saya\"\n" .
+            " TEMPLATE: \"Template sprint/meeting/study/ta/launch\"\n" .
+            " PENGINGAT: \"Ingatkan saya X besok jam 9\"\n" .
+            " BATCH: \"Ganti semua deadline ke minggu depan\"\n" .
+            " MULTI: \"Buat tugas A, B, dan C\"\n" .
+            " SARAN: \"Saran cerdas\" / \"Tips\"\n" .
+            " MOOD: \"Saya stres\" / \"Merasa burnout\""
         );
     }
 
@@ -4510,10 +4569,10 @@ class LocalAiEngine
         }
 
         $tip          = $tips[array_rand($tips)];
-        $completedMsg = $completed > 0 ? $this->t(" Anda sudah selesaikan {$completed} tugas — bukti Anda bisa!"," You've completed {$completed} — proof you can!") : '';
+        $completedMsg = $completed > 0 ? $this->t(" Anda sudah selesaikan {$completed} tugas  bukti Anda bisa!"," You've completed {$completed}  proof you can!") : '';
         $pendingMsg   = $pending > 0   ? $this->t(" Ada {$pending} tugas menunggu."," {$pending} tasks waiting.") : '';
 
-        return $this->respond("💪 {$tip}{$completedMsg}{$pendingMsg}", null, ['focus_mode', 'pomodoro']);
+        return $this->respond(" {$tip}{$completedMsg}{$pendingMsg}", null, ['focus_mode', 'pomodoro']);
     }
 
     private function respondTaskNotFound(string $query): array
@@ -4525,14 +4584,14 @@ class LocalAiEngine
         );
         if ($suggestions->isNotEmpty()) {
             $text .= $this->t(" Tugas yang ada:\n", " Available tasks:\n");
-            foreach ($suggestions as $t) $text .= "— \"{$t->judul}\"\n";
+            foreach ($suggestions as $t) $text .= " \"{$t->judul}\"\n";
         }
         return $this->respond($text);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // RESPONSE BUILDER — with optional quick_replies
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // RESPONSE BUILDER  with optional quick_replies
+    // 
 
     /**
      * Build unified response payload.
@@ -4548,13 +4607,17 @@ class LocalAiEngine
         $extra['compute_device'] = $this->computeDevice;
         $extra['version'] = self::VERSION;
 
-        $res = [
+        $payload = [
             'message'      => $message,
             'action'       => $action,
             'quickReplies' => $quickReplies ?: $this->getDefaultQuickReplies(),
         ];
         
-        return array_merge($res, $extra);
+        $payload = array_merge($payload, $extra);
+
+        return [
+            'content' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+        ];
     }
 
     /**
@@ -4581,26 +4644,26 @@ class LocalAiEngine
     private function resolveQuickReplyLabels(array $intents): array
     {
         $map = [
-            'focus_mode'        => ['🎯 Mode Fokus',         '🎯 Focus Mode'],
-            'daily_planner'     => ['📋 Rencana Harian',     '📋 Daily Plan'],
-            'deep_work'         => ['🧠 Deep Work',          '🧠 Deep Work'],
-            'pomodoro'          => ['⏱️ Pomodoro',           '⏱️ Pomodoro'],
-            'eisenhower'        => ['🧭 Eisenhower Matrix',  '🧭 Eisenhower Matrix'],
-            'stats'             => ['📊 Statistik',          '📊 Stats'],
-            'weekly_review'     => ['📅 Review Mingguan',    '📅 Weekly Review'],
-            'productivity'      => ['💡 Produktivitas',      '💡 Productivity'],
-            'workload'          => ['⚡ Beban Kerja',         '⚡ Workload'],
-            'smart_suggest'     => ['💡 Saran Cerdas',       '💡 Smart Tips'],
-            'streak'            => ['🏆 Pencapaian',         '🏆 Achievements'],
-            'set_goal'          => ['🎯 Buat Goal',          '🎯 Set Goal'],
-            'check_goal'        => ['📌 Lihat Goal',         '📌 My Goals'],
-            'reschedule_overdue'=> ['🔄 Jadwal Ulang',       '🔄 Reschedule Overdue'],
-            'help'              => ['❓ Bantuan',             '❓ Help'],
-            'motivation'        => ['💪 Motivasi',           '💪 Motivation'],
-            'recall_memory'     => ['🧠 Apa yang kau ingat?', '🧠 What do you remember?'],
-            'memory_stats'      => ['📦 Status Memori',      '📦 Memory Stats'],
-            'batal'             => ['❌ Batal',              '❌ Cancel'],
-            'skip'              => ['⏭️ Lewati',            '⏭️ Skip'],
+            'focus_mode'        => [' Mode Fokus',         ' Focus Mode'],
+            'daily_planner'     => [' Rencana Harian',     ' Daily Plan'],
+            'deep_work'         => [' Deep Work',          ' Deep Work'],
+            'pomodoro'          => [' Pomodoro',           ' Pomodoro'],
+            'eisenhower'        => [' Eisenhower Matrix',  ' Eisenhower Matrix'],
+            'stats'             => [' Statistik',          ' Stats'],
+            'weekly_review'     => [' Review Mingguan',    ' Weekly Review'],
+            'productivity'      => [' Produktivitas',      ' Productivity'],
+            'workload'          => [' Beban Kerja',         ' Workload'],
+            'smart_suggest'     => [' Saran Cerdas',       ' Smart Tips'],
+            'streak'            => [' Pencapaian',         ' Achievements'],
+            'set_goal'          => [' Buat Goal',          ' Set Goal'],
+            'check_goal'        => [' Lihat Goal',         ' My Goals'],
+            'reschedule_overdue'=> [' Jadwal Ulang',       ' Reschedule Overdue'],
+            'help'              => [' Bantuan',             ' Help'],
+            'motivation'        => [' Motivasi',           ' Motivation'],
+            'recall_memory'     => [' Apa yang kau ingat?', ' What do you remember?'],
+            'memory_stats'      => [' Status Memori',      ' Memory Stats'],
+            'batal'             => [' Batal',              ' Cancel'],
+            'skip'              => [' Lewati',            ' Skip'],
         ];
 
         $labels = [];
@@ -4613,9 +4676,9 @@ class LocalAiEngine
         return $labels;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // MEMORY INTENT SCORING
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function scoreRememberPreference(string $msg): int
     {
@@ -4680,9 +4743,9 @@ class LocalAiEngine
         return $this->matchesAny($msg, $patterns) ? 82 : 0;
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // MEMORY INTENT RESPONSES
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function respondRememberPreference(string $msg, string $original): array
     {
@@ -4930,9 +4993,9 @@ class LocalAiEngine
         ), null, ['help']);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // LANGUAGE SWITCHING — dynamic runtime language change
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // LANGUAGE SWITCHING  dynamic runtime language change
+    // 
 
     private function scoreSwitchLanguage(string $msg): int
     {
@@ -5023,9 +5086,9 @@ class LocalAiEngine
         return 'general_chat';
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // LEARNED PATTERN MATCHING — boost scores from memory
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // LEARNED PATTERN MATCHING  boost scores from memory
+    // 
 
     /**
      * Apply learned synonym/pattern boosts from Supabase memory.
@@ -5060,7 +5123,7 @@ class LocalAiEngine
                 }
             }
         } catch (\Exception $e) {
-            // Memory unavailable — continue without learned patterns
+            // Memory unavailable  continue without learned patterns
         }
 
         return $scores;

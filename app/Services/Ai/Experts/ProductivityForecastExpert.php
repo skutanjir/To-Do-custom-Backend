@@ -18,7 +18,7 @@ class ProductivityForecastExpert implements ExpertInterface
         $totalTasks = count($tasks);
         $incomplete = collect($tasks)->where('is_completed', false)->count();
 
-        // ── Forecast Algorithm (PHP-Based) ──────────────────────────
+        //  Forecast Algorithm (PHP-Based) 
         if ($incomplete > 5) {
             $findings[] = "Beban kerja Tuan meningkat ($incomplete tugas tertunda).";
             $suggestions[] = "Pertimbangkan untuk menjadwal ulang tugas non-prioritas agar tidak kewalahan.";

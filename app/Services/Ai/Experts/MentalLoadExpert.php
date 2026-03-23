@@ -19,7 +19,7 @@ class MentalLoadExpert implements ExpertInterface
             return !$t['is_completed'] && isset($t['deadline']) && strtotime($t['deadline']) < time();
         })->count();
 
-        // ── Mental Load Score Calculation ───────────────────────────
+        //  Mental Load Score Calculation 
         $loadScore = ($highPriority * 15) + ($overdue * 25);
 
         if ($loadScore > 50) {

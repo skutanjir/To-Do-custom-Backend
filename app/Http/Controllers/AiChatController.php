@@ -18,26 +18,26 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
 
 /**
- * ╔═════════════════════════════════════════════════════════════════════╗
- * ║         A I   C H A T   C O N T R O L L E R   v3.0                  ║
- * ║                                                                     ║
- * ║   Features:                                                         ║
- * ║   • LocalAiEngine v3 integration (all new action types)             ║
- * ║   • Text-to-Speech endpoint (male/female, multi-language)           ║
- * ║   • Voice preference persistence (per user/device)                  ║
- * ║   • Smart provider routing with health-check cache                  ║
- * ║   • Exponential backoff retry on transient failures                 ║
- * ║   • SSE streaming endpoint                                          ║
- * ║   • Conversation auto-summarization (compress long history)         ║
- * ║   • Full action coverage (batch_update, start_pomodoro, goals, ...) ║
- * ║   • Structured audit logging (channel: daily)                       ║
- * ║   • Per-user & per-device rate limiting                             ║
- * ║   • XSS / injection sanitization                                    ║
- * ╚═════════════════════════════════════════════════════════════════════╝
+ * 
+ *          A I   C H A T   C O N T R O L L E R   v3.0                  
+ *                                                                      
+ *    Features:                                                         
+ *     LocalAiEngine v3 integration (all new action types)             
+ *     Text-to-Speech endpoint (male/female, multi-language)           
+ *     Voice preference persistence (per user/device)                  
+ *     Smart provider routing with health-check cache                  
+ *     Exponential backoff retry on transient failures                 
+ *     SSE streaming endpoint                                          
+ *     Conversation auto-summarization (compress long history)         
+ *     Full action coverage (batch_update, start_pomodoro, goals, ...) 
+ *     Structured audit logging (channel: daily)                       
+ *     Per-user & per-device rate limiting                             
+ *     XSS / injection sanitization                                    
+ * 
  */
 class AiChatController extends Controller
 {
-    // ── Rate limits ──────────────────────────────────────────────────────
+    //  Rate limits 
     private const RATE_LIMIT_REQUESTS  = 20;   // max requests per window
     private const RATE_LIMIT_WINDOW    = 60;   // seconds
     private const PROVIDER_COOLDOWN    = 300;  // seconds after rate limit hit
@@ -45,7 +45,7 @@ class AiChatController extends Controller
     private const HISTORY_SUMMARIZE_AT = 15;   // summarize when history >= N turns
     private const MAX_TOKENS_RESPONSE  = 800;
 
-    // ── TTS constants ─────────────────────────────────────────────────────
+    //  TTS constants 
     private const TTS_FEMALE_VOICES = [
         'id' => 'id-ID-GadisNeural',     // Indonesian female
         'en' => 'en-US-JennyNeural',     // English female
@@ -67,18 +67,18 @@ class AiChatController extends Controller
         'calm'        => 'calm',
     ];
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // AI PROVIDER REGISTRY
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // INDUSTRIAL PERFORMANCE (v6.0)
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // MAIN CHAT ENDPOINT
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     public function chat(Request $request): JsonResponse
     {
@@ -98,17 +98,17 @@ class AiChatController extends Controller
             return response()->json(['message' => 'Unauthorized or Device ID required'], 401);
         }
 
-        // ── Rate limiting ──────────────────────────────────────────
+        //  Rate limiting 
         if ($this->isRateLimited($user, $deviceId)) {
             return response()->json([
-                'message'       => 'Terlalu banyak permintaan. Tunggu sebentar, Tuan 🙏',
+                'message'       => 'Terlalu banyak permintaan. Tunggu sebentar, Tuan ',
                 'action'        => null,
                 'action_result' => null,
                 'provider'      => 'rate_limit',
             ], 429);
         }
 
-        // ── Sanitize input ────────────────────────────────────────
+        //  Sanitize input 
         $userMessage = $this->sanitizeInput($request->message);
         if (empty($userMessage)) {
             return response()->json(['message' => 'Pesan tidak valid setelah sanitasi.'], 422);
@@ -116,24 +116,24 @@ class AiChatController extends Controller
 
         $history = $this->sanitizeHistory($request->history ?? []);
 
-        // ── Auto-summarize long histories ─────────────────────────
+        //  Auto-summarize long histories 
         if (count($history) >= self::HISTORY_SUMMARIZE_AT) {
             $history = $this->summarizeHistory($history);
         }
 
-        // ── Load task context ─────────────────────────────────────
+        //  Load task context 
         $todos = $this->loadTodos($user, $deviceId);
 
-        // ── Voice preferences ─────────────────────────────────────
+        //  Voice preferences 
         $voicePrefs = $this->resolveVoicePrefs($request, $user, $deviceId);
 
-        // ── Strictly Local Engine (v6.0 Enterprise Hardening) ─────────
+        //  Strictly Local Engine (v6.0 Enterprise Hardening) 
         $memoryService = new AiMemoryService($user?->id, $deviceId);
         $voiceMode     = (bool) ($request->voice_enabled ?? false);
         $localEngine   = new LocalAiEngine($todos, $user?->name ?? 'Tuan', $history, $memoryService, $voiceMode);
         $localResult   = $localEngine->handle($userMessage);
 
-        // ── Persist Chat History ──────────────────────────────────
+        //  Persist Chat History 
         $chatId = $request->chat_id;
         $chat = null;
         if ($chatId) {
@@ -185,9 +185,9 @@ class AiChatController extends Controller
         return response()->json($data);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // STREAMING ENDPOINT (SSE)
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     public function stream(Request $request): StreamedResponse
     {
@@ -205,19 +205,21 @@ class AiChatController extends Controller
             abort(429);
         }
 
-        $userMessage = $this->sanitizeInput($request->message);
-        $history     = $this->sanitizeHistory($request->history ?? []);
-        $todos       = $this->loadTodos($user, $deviceId);
+        $userMessage   = $this->sanitizeInput($request->message);
+        $history       = $this->sanitizeHistory($request->history ?? []);
+        $todos         = $this->loadTodos($user, $deviceId);
+        $memoryService = new AiMemoryService($user?->id, $deviceId);
 
-        return response()->stream(function () use ($userMessage, $history, $todos, $user, $deviceId, $request) {
+        return response()->stream(function () use ($userMessage, $history, $todos, $user, $deviceId, $request, $memoryService) {
             $voiceMode   = (bool) ($request->voice_enabled ?? false);
-            $localEngine = new LocalAiEngine($todos, $user?->name, $history, null, $voiceMode);
+            $localEngine = new LocalAiEngine($todos, $user?->name, $history, $memoryService, $voiceMode);
             $localResult = $localEngine->handle($userMessage);
 
             $parsed = $this->parseAiResponse($localResult['content']);
             $this->streamChunk([
                 'type' => 'message', 
                 'content' => $parsed['message'], 
+                'compute_device' => $parsed['compute_device'] ?? 'cpu',
                 'provider' => 'local',
                 'current_step' => $parsed['session']['current_step'] ?? 0,
                 'total_steps' => $parsed['session']['total_steps'] ?? 0,
@@ -236,7 +238,7 @@ class AiChatController extends Controller
                 $this->streamChunk(['type' => 'quick_replies', 'data' => $parsed['quick_replies']]);
             }
 
-            // ── Persist Streamed Message ──────────────────────────
+            //  Persist Streamed Message 
             $chatId = $request->chat_id;
             $chat = null;
             if ($chatId) {
@@ -287,16 +289,16 @@ class AiChatController extends Controller
         ]);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // TEXT-TO-SPEECH ENDPOINT
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     /**
      * POST /api/ai/tts
      * Convert AI response text to speech audio using Azure Cognitive Services.
      *
      * Body params:
-     *   - text: string (required) — text to synthesize
+     *   - text: string (required)  text to synthesize
      *   - gender: "female"|"male" (default: female)
      *   - lang: "id"|"en"|"jv"|"su" (default: id)
      *   - style: "friendly"|"professional"|"cheerful"|"calm" (default: friendly)
@@ -318,7 +320,7 @@ class AiChatController extends Controller
 
         [$user, $deviceId] = $this->resolveIdentity($request);
 
-        // ── Persist voice preference if requested ─────────────────
+        //  Persist voice preference if requested 
         $gender = $request->gender ?? 'female';
         $lang   = $request->lang   ?? 'id';
         $style  = $request->style  ?? 'friendly';
@@ -329,7 +331,7 @@ class AiChatController extends Controller
             $this->saveVoicePreference($user, $deviceId, compact('gender', 'lang', 'style', 'rate', 'pitch'));
         }
 
-        // ── Resolve voice name ────────────────────────────────────
+        //  Resolve voice name 
         $voiceName = $gender === 'male'
             ? (self::TTS_MALE_VOICES[$lang]   ?? self::TTS_MALE_VOICES['id'])
             : (self::TTS_FEMALE_VOICES[$lang] ?? self::TTS_FEMALE_VOICES['id']);
@@ -337,10 +339,10 @@ class AiChatController extends Controller
         $ratePercent  = $this->floatToPercent($rate);
         $pitchPercent = $this->floatToPercent($pitch);
 
-        // ── Clean text ─────────────────────────────────────────────
+        //  Clean text 
         $cleanText = $this->cleanTextForTts($request->text);
 
-        // ── Return metadata only (useful for browser TTS fallback) ──
+        //  Return metadata only (useful for browser TTS fallback) 
         return response()->json([
             'fallback'   => true,
             'voice'      => $voiceName,
@@ -350,7 +352,7 @@ class AiChatController extends Controller
             'style'      => $style ?? 'friendly',
             'rate'       => $ratePercent,
             'pitch'      => $pitchPercent,
-            'message'    => 'Local TTS enabled — use browser Web Speech API.',
+            'message'    => 'Local TTS enabled  use browser Web Speech API.',
         ]);
     }
 
@@ -391,9 +393,9 @@ class AiChatController extends Controller
         return response()->json(['success' => true, 'preferences' => $prefs]);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // VOICE HELPERS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function defaultVoicePrefs(): array
     {
@@ -459,7 +461,7 @@ SSML;
         $text = preg_replace('/__([^_]+)__/', '$1', $text);              // __underline__
         $text = preg_replace('/`([^`]+)`/', '$1', $text);                // `code`
         $text = preg_replace('/#{1,6}\s/', '', $text);                   // headings
-        $text = preg_replace('/━+/', '', $text);                         // separators
+        $text = preg_replace('/\+/', '', $text);                         // separators
         $text = preg_replace('/[\x{1F300}-\x{1FFFF}]/u', '', $text);    // most emoji
         $text = preg_replace('/[\x{2700}-\x{27BF}]/u', '', $text);      // dingbats
         $text = preg_replace('/\[ID:\d+\]/', '', $text);                 // task IDs
@@ -474,18 +476,18 @@ SSML;
         return $pct > 0 ? "+{$pct}%" : "{$pct}%";
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // PROVIDER FALLBACK CHAIN
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
 
     /**
      * Call provider with exponential backoff (max 2 retries for transient errors).
      */
 
-    // ═══════════════════════════════════════════════════════════════
-    // RESPONSE BUILDER — handles TTS, action execution, audit log
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // RESPONSE BUILDER  handles TTS, action execution, audit log
+    // 
 
     private function buildResponse(
         string  $rawContent,
@@ -504,6 +506,7 @@ SSML;
 
         $response = [
             'message'           => $parsed['message'],
+            'compute_device'    => $parsed['compute_device'] ?? 'cpu',
             'action'            => $parsed['action'],
             'action_result'     => $actionResult,
             'provider'          => $provider,
@@ -517,7 +520,7 @@ SSML;
             'session_label'     => $parsed['session']['label'] ?? (isset($parsed['session']['type']) ? ucfirst($parsed['session']['type']) : null),
         ];
 
-        // ── Attach TTS data if voice is enabled ────────────────────
+        //  Attach TTS data if voice is enabled 
         if ($voicePrefs['enabled'] && !empty($parsed['message'])) {
             $response['tts'] = $this->buildTtsMeta($parsed['message'], $voicePrefs);
         }
@@ -551,9 +554,9 @@ SSML;
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ACTION EXECUTOR — all action types from LocalAiEngine v3
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // ACTION EXECUTOR  all action types from LocalAiEngine v3
+    // 
 
     private function executeAction(array $action, $user, ?string $deviceId): ?array
     {
@@ -562,34 +565,34 @@ SSML;
 
         try {
             $result = match ($type) {
-                // ── Core CRUD ──────────────────────────────────────────────
+                //  Core CRUD 
                 'create_task'            => $this->executeCreateTask($data, $user, $deviceId),
                 'update_task'            => $this->executeUpdateTask($data, $user, $deviceId),
                 'delete_task'            => $this->executeDeleteTask($data, $user, $deviceId),
                 'toggle_task'            => $this->executeToggleTask($data, $user, $deviceId),
 
-                // ── Batch / Bulk ───────────────────────────────────────────
+                //  Batch / Bulk 
                 'batch_create'           => $this->executeBatchCreate($data, $user, $deviceId),
                 'bulk_delete'            => $this->executeBulkDelete($data, $user, $deviceId),
                 'bulk_toggle'            => $this->executeBulkToggle($data, $user, $deviceId),
                 'batch_update_deadline'  => $this->executeBatchUpdateDeadline($data, $user, $deviceId),
                 'batch_update_priority'  => $this->executeBatchUpdatePriority($data, $user, $deviceId),
 
-                // ── Scheduling ─────────────────────────────────────────────
+                //  Scheduling 
                 'reschedule_all_overdue' => $this->executeRescheduleAllOverdue($data, $user, $deviceId),
 
-                // ── Special features ───────────────────────────────────────
+                //  Special features 
                 'duplicate_task'         => $this->executeDuplicateTask($data, $user, $deviceId),
                 'move_task'              => $this->executeMoveTask($data, $user, $deviceId),
                 'start_pomodoro'         => $this->executeStartPomodoro($data, $user, $deviceId),
 
-                // ── Industrial Scale (v6.0) ────────────────────────────────
+                //  Industrial Scale (v6.0) 
                 'create_workspace'       => $this->executeCreateWorkspace($data, $user, $deviceId),
                 'create_subtask'         => $this->executeCreateSubtask($data, $user, $deviceId),
                 'update_task_state'      => $this->executeUpdateTaskState($data, $user, $deviceId),
                 'generate_analytics_report' => $this->executeGenerateAnalyticsReport($data, $user, $deviceId),
 
-                // ── Read-only ──────────────────────────────────────────────
+                //  Read-only 
                 'search_tasks',
                 'get_schedule',
                 'get_stats',
@@ -598,7 +601,7 @@ SSML;
                 default => null,
             };
 
-            // ── Structured audit log for all write actions ──────────
+            //  Structured audit log for all write actions 
             $readOnlyTypes = ['search_tasks', 'get_schedule', 'get_stats', 'list_tasks'];
             if ($result && ($result['success'] ?? false) && !in_array($type, $readOnlyTypes)) {
                 $this->auditLog($type, $data, $user, $deviceId);
@@ -643,7 +646,7 @@ SSML;
         })->toArray();
     }
 
-    // ── CRUD ────────────────────────────────────────────────────────────
+    //  CRUD 
 
     private function executeCreateTask(array $data, $user, ?string $deviceId): array
     {
@@ -710,7 +713,7 @@ SSML;
         return ['success' => true, 'todo' => $todo->fresh()->toArray()];
     }
 
-    // ── Batch / Bulk ─────────────────────────────────────────────────────
+    //  Batch / Bulk 
 
     private function executeBatchCreate(array $data, $user, ?string $deviceId): array
     {
@@ -753,7 +756,7 @@ SSML;
         return ['success' => true, 'toggled_count' => $toggled, 'set_completed' => $setCompleted];
     }
 
-    // ── Industrial Scale executors (v6.0) ───────────────────────────────
+    //  Industrial Scale executors (v6.0) 
 
     private function executeCreateWorkspace(array $data, $user, ?string $deviceId): array
     {
@@ -817,7 +820,8 @@ SSML;
     {
         [$user, $deviceId] = $this->resolveIdentity($request);
         $todos = $this->loadTodos($user, $deviceId);
-        $engine = new LocalAiEngine($todos, $user?->name ?? 'User');
+        $memory = new AiMemoryService($user?->id, $deviceId);
+        $engine = new LocalAiEngine($todos, $user?->name ?? 'User', [], $memory);
         
         $reasoning = $engine->getExpertManager()->reason('dashboard_poll', [
             'tasks' => collect($todos)->map(fn($t) => $t->toArray())->toArray(),
@@ -987,7 +991,7 @@ SSML;
         return ['success' => true, 'updated_count' => $updated, 'new_priority' => $priority];
     }
 
-    // ── Scheduling ───────────────────────────────────────────────────────
+    //  Scheduling 
 
     private function executeRescheduleAllOverdue(array $data, $user, ?string $deviceId): array
     {
@@ -1012,7 +1016,7 @@ SSML;
         return ['success' => true, 'rescheduled_count' => $count, 'target_date' => $targetDate->toDateTimeString()];
     }
 
-    // ── Special ──────────────────────────────────────────────────────────
+    //  Special 
 
     private function executeDuplicateTask(array $data, $user, ?string $deviceId): array
     {
@@ -1048,7 +1052,7 @@ SSML;
     }
 
     /**
-     * NEW: Start Pomodoro session — creates a special timer task
+     * NEW: Start Pomodoro session  creates a special timer task
      */
     private function executeStartPomodoro(array $data, $user, ?string $deviceId): array
     {
@@ -1061,7 +1065,7 @@ SSML;
         $endTime = now()->addMinutes($workMins);
 
         $pomodoroTask = Todo::create([
-            'judul'     => "⏱️ Pomodoro: {$taskName} ({$workMins}m)",
+            'judul'     => " Pomodoro: {$taskName} ({$workMins}m)",
             'deskripsi' => "Work: {$workMins}min | Break: {$breakMins}min | Started: " . now()->format('H:i'),
             'deadline'  => $endTime,
             'priority'  => 'high',
@@ -1083,9 +1087,9 @@ SSML;
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // PROVIDER CALLS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
 
     private function streamChunk(array $data): void
@@ -1095,9 +1099,9 @@ SSML;
         flush();
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // CONVERSATION SUMMARIZATION
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     /**
      * Compress long conversation history into a summary turn.
@@ -1118,7 +1122,7 @@ SSML;
                 // Extract first sentence only
                 $first = explode('.', strip_tags($turn['content']))[0] ?? '';
                 if (mb_strlen($first) > 10) {
-                    $summaryLines[] = '— ' . mb_substr(trim($first), 0, 120);
+                    $summaryLines[] = ' ' . mb_substr(trim($first), 0, 120);
                 }
             }
         }
@@ -1127,15 +1131,15 @@ SSML;
 
         $summary = [
             'role'    => 'system',
-            'content' => '[Conversation summary — earlier turns]: ' . implode(' ', $summaryLines),
+            'content' => '[Conversation summary  earlier turns]: ' . implode(' ', $summaryLines),
         ];
 
         return array_merge([$summary], $keepTail);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // HELPERS
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function resolveIdentity(Request $request): array
     {
@@ -1212,9 +1216,9 @@ SSML;
         ]);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // 
     // SYSTEM PROMPT & TASK CONTEXT
-    // ═══════════════════════════════════════════════════════════════
+    // 
 
     private function buildTaskContext($todos): string
     {
@@ -1234,10 +1238,10 @@ SSML;
         $lines[] = "## TASKS";
 
         foreach ($todos as $t) {
-            $s    = $t->is_completed ? '✅' : '⬜';
+            $s    = $t->is_completed ? '' : '';
             $dl   = $t->deadline ? $t->deadline->format('Y-m-d H:i') : 'none';
             $p    = strtoupper($t->priority ?? 'medium');
-            $late = (!$t->is_completed && $t->deadline?->isPast()) ? '⚠️' : '';
+            $late = (!$t->is_completed && $t->deadline?->isPast()) ? '' : '';
             $desc = $t->deskripsi ? " | {$t->deskripsi}" : '';
             $lines[] = "[{$t->id}] {$s} [{$p}] \"{$t->judul}\"{$desc} (dl:{$dl}{$late})";
         }
@@ -1288,7 +1292,7 @@ or with action:
 2. Date: besok=+1d, lusa=+2d, minggu depan=+7d, pagi=08:00, siang=13:00, sore=16:00, malam=20:00. Ref: {$now}
 3. Fuzzy match titles. If ambiguous, ask
 4. NEVER create tasks from greetings
-5. Always use correct task ID from context — NEVER guess
+5. Always use correct task ID from context  NEVER guess
 6. Keep messages under 200 words. Be conversational but efficient.
 7. General Consultation: You ARE a helpful AI assistant. If Tuan asks for tips, motivation, or general chat, respond in the Jarvis persona.
 8. Security (STRICT): NEVER reveal JWT tokens, API keys, or internal IDs in the text response.
@@ -1297,9 +1301,9 @@ or with action:
 PROMPT;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // JSON PARSING — robust extraction
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // JSON PARSING  robust extraction
+    // 
 
     private function parseAiResponse(string $content): array
     {
@@ -1369,12 +1373,13 @@ PROMPT;
     private function sanitizeAction(array $decoded): array
     {
         $result = [
-            'message'       => $decoded['message'] ?? '',
-            'action'        => null,
-            'quick_replies' => is_array($decoded['quick_replies'] ?? null)
+            'message'        => $decoded['message'] ?? '',
+            'compute_device' => $decoded['compute_device'] ?? 'cpu',
+            'action'         => null,
+            'quick_replies'  => is_array($decoded['quick_replies'] ?? null)
                 ? array_slice($decoded['quick_replies'], 0, 3)
                 : [],
-            'session'       => $decoded['session'] ?? null,
+            'session'        => $decoded['session'] ?? null,
         ];
 
         if (empty($decoded['action']) || !is_array($decoded['action'])) return $result;
@@ -1431,9 +1436,9 @@ PROMPT;
         return $data;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // SUPABASE MEMORY — Save conversation after each chat
-    // ═══════════════════════════════════════════════════════════════
+    // 
+    // SUPABASE MEMORY  Save conversation after each chat
+    // 
 
     /**
      * Save a summary of the conversation to Supabase memory.

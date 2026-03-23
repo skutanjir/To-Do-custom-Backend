@@ -143,7 +143,7 @@ class CodeAssistantExpert implements ExpertInterface
     private function getSnippetLibrary(): array
     {
         return [
-            // ── PHP / Laravel
+            //  PHP / Laravel
             [
                 'keywords' => ['laravel', 'crud', 'controller', 'resource'],
                 'triggers' => ['buat crud', 'create crud', 'laravel crud', 'crud laravel'],
@@ -238,7 +238,7 @@ class CodeAssistantExpert implements ExpertInterface
     }
 }',
             ],
-            // ── JavaScript
+            //  JavaScript
             [
                 'keywords' => ['fetch', 'api', 'javascript', 'http', 'request'],
                 'triggers' => ['fetch api', 'javascript fetch', 'panggil api', 'call api js'],
@@ -316,7 +316,7 @@ const sorted = [...tasks].sort((a, b) =>
   order[a.priority] - order[b.priority]
 );',
             ],
-            // ── Python
+            //  Python
             [
                 'keywords' => ['python', 'class', 'oop', 'object'],
                 'triggers' => ['class python', 'oop python', 'buat class python'],
@@ -361,7 +361,7 @@ class TaskManager:
         done = sum(1 for t in self._tasks if t.is_completed)
         return {"total": total, "done": done, "pending": total - done}',
             ],
-            // ── Dart / Flutter
+            //  Dart / Flutter
             [
                 'keywords' => ['flutter', 'widget', 'stateful', 'stateless', 'build'],
                 'triggers' => ['flutter widget', 'buat widget', 'stateful widget', 'create widget flutter'],
@@ -448,7 +448,7 @@ class TaskManager:
   }
 }',
             ],
-            // ── SQL
+            //  SQL
             [
                 'keywords' => ['sql', 'join', 'query', 'select', 'database'],
                 'triggers' => ['sql join', 'cara join', 'query sql', 'complex query'],
@@ -476,7 +476,7 @@ HAVING COUNT(t.id) > 0
 ORDER BY completion_rate DESC
 LIMIT 20;',
             ],
-            // ── Git
+            //  Git
             [
                 'keywords' => ['git', 'branch', 'merge', 'commit', 'rebase'],
                 'triggers' => ['git workflow', 'git commands', 'perintah git', 'cara git'],
@@ -510,7 +510,7 @@ git cherry-pick abc1234
 # View file history
 git log --follow -p -- path/to/file.php',
             ],
-            // ── Design Patterns
+            //  Design Patterns
             [
                 'keywords' => ['repository', 'pattern', 'design', 'arsitektur'],
                 'triggers' => ['repository pattern', 'design pattern laravel', 'pola repository'],
@@ -568,7 +568,7 @@ class TaskRepository implements TaskRepositoryInterface
 // Register in AppServiceProvider
 $this->app->bind(TaskRepositoryInterface::class, TaskRepository::class);',
             ],
-            // ── Error Handling
+            //  Error Handling
             [
                 'keywords' => ['error', 'exception', 'try', 'catch', 'handling'],
                 'triggers' => ['error handling', 'try catch', 'handle error', 'exception handling'],
@@ -597,7 +597,7 @@ try {
     ], 500);
 }',
             ],
-            // ── Authentication
+            //  Authentication
             [
                 'keywords' => ['auth', 'login', 'register', 'token', 'sanctum', 'jwt', 'authentication'],
                 'triggers' => ['auth laravel', 'login api', 'sanctum auth', 'authentication'],
@@ -643,7 +643,7 @@ try {
     }
 }',
             ],
-            // ── React Hooks
+            //  React Hooks
             [
                 'keywords' => ['react', 'hooks', 'usestate', 'useeffect', 'component'],
                 'triggers' => ['react hooks', 'usestate', 'useeffect', 'react component'],
@@ -698,7 +698,7 @@ function TaskList() {
   );
 }',
             ],
-            // ── Docker
+            //  Docker
             [
                 'keywords' => ['docker', 'dockerfile', 'container', 'compose', 'docker-compose'],
                 'triggers' => ['docker setup', 'dockerfile', 'docker compose', 'containerize'],
@@ -737,7 +737,7 @@ CMD ["php-fpm"]
 #     image: nginx:alpine
 #     ports: ["80:80"]',
             ],
-            // ── Regex
+            //  Regex
             [
                 'keywords' => ['regex', 'regular expression', 'preg_match', 'pattern matching'],
                 'triggers' => ['regex', 'regular expression', 'preg_match', 'pattern regex'],

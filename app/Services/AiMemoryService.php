@@ -138,6 +138,10 @@ class AiMemoryService
      */
     public function recall(string $type, string $key): ?array
     {
+        if ($this->useLocal()) {
+            return $this->recallLocal($type, $key);
+        }
+
         try {
             $memory = $this->findMemory($type, $key);
             if ($memory) {
@@ -147,9 +151,40 @@ class AiMemoryService
                 ]);
                 return $memory['value'] ?? null;
             }
+            // Fallback to local DB if not found in Supabase
+            return $this->recallLocal($type, $key);
+        } catch (\Exception $e) {
+            Log::warning('AiMemory: Failed to recall from Supabase, falling back to local', ['error' => $e->getMessage()]);
+            return $this->recallLocal($type, $key);
+        }
+    }
+
+    private function recallLocal(string $type, string $key): ?array
+    {
+        try {
+            $query = AiMemory::where('type', $type)->where('key', $key);
+
+            if ($this->userId) {
+                $query->where('user_id', $this->userId);
+            } elseif ($this->deviceId) {
+                $query->where('device_id', $this->deviceId);
+            } else {
+                $query->whereNull('user_id')->whereNull('device_id');
+            }
+
+            // Filter expired memories
+            $query->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
+
+            $memory = $query->first();
+            if ($memory) {
+                $memory->increment('hits');
+                return $memory->value;
+            }
             return null;
         } catch (\Exception $e) {
-            Log::warning('AiMemory: Failed to recall', ['error' => $e->getMessage()]);
+            Log::warning('AiMemory: Failed to recall locally', ['error' => $e->getMessage()]);
             return null;
         }
     }
@@ -205,13 +240,35 @@ class AiMemoryService
      */
     public function forget(string $type, string $key): bool
     {
+        $localResult = $this->forgetLocal($type, $key);
+
+        if ($this->useLocal()) {
+            return $localResult;
+        }
+
         try {
             $filter = $this->ownerFilter();
             $resp = $this->request()
                 ->delete("{$this->baseUrl}/ai_memories?{$filter}&type=eq.{$type}&key=eq.{$key}");
-            return ($resp instanceof \Illuminate\Http\Client\Response) ? $resp->successful() : false;
+            $supabaseResult = ($resp instanceof \Illuminate\Http\Client\Response) ? $resp->successful() : false;
+            return $supabaseResult || $localResult;
         } catch (\Exception $e) {
-            Log::warning('AiMemory: Failed to forget', ['error' => $e->getMessage()]);
+            Log::warning('AiMemory: Failed to forget from Supabase', ['error' => $e->getMessage()]);
+            return $localResult;
+        }
+    }
+
+    private function forgetLocal(string $type, string $key): bool
+    {
+        try {
+            $query = AiMemory::where('type', $type)->where('key', $key);
+            if ($this->userId) {
+                $query->where('user_id', $this->userId);
+            } elseif ($this->deviceId) {
+                $query->where('device_id', $this->deviceId);
+            }
+            return $query->delete() > 0;
+        } catch (\Exception $e) {
             return false;
         }
     }
@@ -221,14 +278,32 @@ class AiMemoryService
      */
     public function forgetAll(string $type): bool
     {
+        $localResult = false;
+        try {
+            $query = AiMemory::where('type', $type);
+            if ($this->userId) {
+                $query->where('user_id', $this->userId);
+            } elseif ($this->deviceId) {
+                $query->where('device_id', $this->deviceId);
+            }
+            $localResult = $query->delete() > 0;
+        } catch (\Exception $e) {
+            // continue to Supabase
+        }
+
+        if ($this->useLocal()) {
+            return $localResult;
+        }
+
         try {
             $filter = $this->ownerFilter();
             $resp = $this->request()
                 ->delete("{$this->baseUrl}/ai_memories?{$filter}&type=eq.{$type}");
-            return ($resp instanceof \Illuminate\Http\Client\Response) ? $resp->successful() : false;
+            $supabaseResult = ($resp instanceof \Illuminate\Http\Client\Response) ? $resp->successful() : false;
+            return $supabaseResult || $localResult;
         } catch (\Exception $e) {
-            Log::warning('AiMemory: Failed to forgetAll', ['error' => $e->getMessage()]);
-            return false;
+            Log::warning('AiMemory: Failed to forgetAll from Supabase', ['error' => $e->getMessage()]);
+            return $localResult;
         }
     }
 
@@ -484,6 +559,10 @@ class AiMemoryService
 
     private function findMemory(string $type, string $key): ?array
     {
+        if ($this->useLocal()) {
+            return $this->findMemoryLocal($type, $key);
+        }
+
         try {
             $filter = $this->ownerFilter();
             $resp = $this->request()
@@ -494,7 +573,32 @@ class AiMemoryService
             if ($resp->successful() && !empty($resp->json())) {
                 return $resp->json()[0];
             }
-            return null;
+            // Supabase returned empty — try local
+            return $this->findMemoryLocal($type, $key);
+        } catch (\Exception $e) {
+            return $this->findMemoryLocal($type, $key);
+        }
+    }
+
+    private function findMemoryLocal(string $type, string $key): ?array
+    {
+        try {
+            $query = AiMemory::where('type', $type)->where('key', $key);
+
+            if ($this->userId) {
+                $query->where('user_id', $this->userId);
+            } elseif ($this->deviceId) {
+                $query->where('device_id', $this->deviceId);
+            } else {
+                $query->whereNull('user_id')->whereNull('device_id');
+            }
+
+            $query->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
+
+            $memory = $query->first();
+            return $memory ? $memory->toArray() : null;
         } catch (\Exception $e) {
             return null;
         }
