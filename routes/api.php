@@ -1,12 +1,12 @@
 <?php
 
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\TodoController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\TeamController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\AiChatController;
-use App\Http\Controllers\AiHistoryController;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Task\TodoController;
+use App\Http\Controllers\User\ProfileController;
+use App\Http\Controllers\Workspace\TeamController;
+use App\Http\Controllers\System\NotificationController;
+use App\Http\Controllers\Ai\AiChatController;
+use App\Http\Controllers\Ai\AiHistoryController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 

@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\Todo;
-use App\Models\Notification;
+use App\Models\Task\Todo;
+use App\Models\System\Notification;
 use Carbon\Carbon;
 
 class CheckTaskDeadlines extends Command

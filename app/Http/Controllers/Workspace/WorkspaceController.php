@@ -1,9 +1,9 @@
 <?php
 // app/Http/Controllers/WorkspaceController.php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Workspace;
 
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

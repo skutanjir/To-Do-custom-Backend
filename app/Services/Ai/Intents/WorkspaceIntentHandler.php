@@ -3,7 +3,7 @@
 
 namespace App\Services\Ai\Intents;
 
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Support\Str;
 
 class WorkspaceIntentHandler implements IntentHandler

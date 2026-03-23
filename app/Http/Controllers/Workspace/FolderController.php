@@ -1,10 +1,10 @@
 <?php
 // app/Http/Controllers/FolderController.php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Workspace;
 
-use App\Models\Folder;
-use App\Models\Project;
+use App\Models\Workspace\Folder;
+use App\Models\Workspace\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Workspace;
 
 use Illuminate\Http\Request;
-use App\Models\Notification;
-use App\Models\Team;
+use App\Models\System\Notification;
+use App\Models\Workspace\Team;
 use App\Models\User;
 
 class TeamController extends Controller

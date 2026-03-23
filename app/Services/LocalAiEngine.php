@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Todo;
+use App\Models\Task\Todo;
 use App\Services\AiMemoryService;
 use App\Services\Ai\LinguisticService;
 use App\Services\Ai\IntentManager;

@@ -1,11 +1,11 @@
 <?php
 // app/Http/Controllers/AiChatController.php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Ai;
 
-use App\Models\Todo;
+use App\Models\Task\Todo;
 use App\Models\AiChat;
-use App\Models\AiChatMessage;
+use App\Models\Ai\AiChatMessage;
 use App\Services\LocalAiEngine;
 use App\Services\AiMemoryService;
 use Illuminate\Http\Request;

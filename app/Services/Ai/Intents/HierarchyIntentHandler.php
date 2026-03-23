@@ -3,7 +3,7 @@
 
 namespace App\Services\Ai\Intents;
 
-use App\Models\Todo;
+use App\Models\Task\Todo;
 use Illuminate\Support\Str;
 
 class HierarchyIntentHandler implements IntentHandler

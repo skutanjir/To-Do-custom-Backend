@@ -1,9 +1,9 @@
 <?php
 // app/Http/Controllers/TodoStateController.php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Task;
 
-use App\Models\TodoState;
+use App\Models\Task\TodoState;
 use Illuminate\Http\Request;
 
 class TodoStateController extends Controller

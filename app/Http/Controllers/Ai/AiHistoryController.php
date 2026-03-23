@@ -1,6 +1,6 @@
 <?php
 // app/Http/Controllers/AiHistoryController.php
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Ai;
 
 use App\Models\AiChat;
 use Illuminate\Http\Request;

@@ -1,6 +1,8 @@
 <?php
 // app/Models/AiChatMessage.php
-namespace App\Models;
+namespace App\Models\Ai;
+
+use App\Models\User;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

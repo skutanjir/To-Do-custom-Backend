@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Models\AiMemory;
-use App\Models\AiConversation;
+use App\Models\Ai\AiMemory;
+use App\Models\Ai\AiConversation;
 
 /**
  * ╔══════════════════════════════════════════════════════════════╗

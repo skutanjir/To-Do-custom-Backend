@@ -1,10 +1,10 @@
 <?php
 // app/Http/Controllers/ProjectController.php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Workspace;
 
-use App\Models\Project;
-use App\Models\Workspace;
+use App\Models\Workspace\Project;
+use App\Models\Workspace\Workspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

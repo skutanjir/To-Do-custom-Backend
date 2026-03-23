@@ -4,7 +4,7 @@
 namespace App\Services\Ai\Experts;
 
 use App\Services\Ai\ExpertInterface;
-use App\Models\Todo;
+use App\Models\Task\Todo;
 
 class HabitExpert implements ExpertInterface
 {

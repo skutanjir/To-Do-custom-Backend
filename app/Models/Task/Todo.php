@@ -1,7 +1,9 @@
 <?php
 // app/Models/Todo.php
 
-namespace App\Models;
+namespace App\Models\Task;
+
+use App\Models\User;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

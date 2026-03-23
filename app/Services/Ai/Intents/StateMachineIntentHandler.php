@@ -3,7 +3,7 @@
 
 namespace App\Services\Ai\Intents;
 
-use App\Models\TodoState;
+use App\Models\Task\TodoState;
 use Illuminate\Support\Str;
 
 class StateMachineIntentHandler implements IntentHandler
