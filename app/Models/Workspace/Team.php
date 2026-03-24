@@ -3,12 +3,13 @@
 namespace App\Models\Workspace;
 
 use App\Models\User;
-
+use App\Models\Task\Todo;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Team extends Model
 {
-    use \Illuminate\Database\Eloquent\Factories\HasFactory;
+    use HasFactory;
 
     protected $fillable = ['name', 'description', 'created_by'];
 
@@ -25,5 +26,5 @@ class Team extends Model
     public function todos()
     {
         return $this->hasMany(Todo::class);
-}
+    }
 }

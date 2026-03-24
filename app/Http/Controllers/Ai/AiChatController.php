@@ -785,7 +785,7 @@ SSML;
 
     private function executeCreateWorkspace(array $data, $user, ?string $deviceId): array
     {
-        $workspace = \App\Models\Workspace::create([
+        $workspace = \App\Models\Workspace\Workspace::create([
             'name'    => strip_tags($data['name'] ?? 'New Workspace'),
             'owner_id'=> $user?->id,
             'slug'    => \Illuminate\Support\Str::slug($data['name'] ?? 'new-workspace') . '-' . \Illuminate\Support\Str::random(4),
@@ -1242,7 +1242,7 @@ SSML;
         $pending = (clone $baseQuery)->where('is_completed', false)->latest()->limit(500);
         $completed = (clone $baseQuery)->where('is_completed', true)->latest()->limit(100);
 
-        return $pending->union($completed)->get();
+        return $pending->get()->concat($completed->get());
     }
 
     private function verifyOwnership($todo, $user, ?string $deviceId): bool

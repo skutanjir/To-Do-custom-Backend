@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Task\Todo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +29,7 @@ class AuthController extends Controller
 
         $deviceId = $request->header('X-Device-ID') ?? $request->device_id;
         if ($deviceId) {
-            \App\Models\Todo::where('device_id', $deviceId)
+            Todo::where('device_id', $deviceId)
                 ->whereNull('user_id')
                 ->update(['user_id' => $user->id, 'device_id' => null]);
         }
@@ -58,7 +59,7 @@ class AuthController extends Controller
 
         $deviceId = $request->header('X-Device-ID') ?? $request->device_id;
         if ($deviceId) {
-            \App\Models\Todo::where('device_id', $deviceId)
+            Todo::where('device_id', $deviceId)
                 ->whereNull('user_id')
                 ->update(['user_id' => $user->id, 'device_id' => null]);
         }

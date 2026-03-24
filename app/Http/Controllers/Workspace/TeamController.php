@@ -50,7 +50,7 @@ class TeamController extends Controller
             'description' => 'nullable|string|max:1000',
         ]);
 
-        $team = \App\Models\Team::create([
+        $team = Team::create([
             'name' => $request->name,
             'description' => $request->description,
             'created_by' => $request->user()->id,
@@ -67,7 +67,7 @@ class TeamController extends Controller
         ], 201);
     }
 
-    public function invite(Request $request, \App\Models\Team $team)
+    public function invite(Request $request, Team $team)
     {
         // Only owner can invite
         if ($team->created_by !== $request->user()->id) {
@@ -78,7 +78,7 @@ class TeamController extends Controller
             'email' => 'required|email|exists:users,email',
         ]);
 
-        $userToInvite = \App\Models\User::where('email', $request->email)->first();
+        $userToInvite = User::where('email', $request->email)->first();
 
         $membership = $team->members()->where('user_id', $userToInvite->id)->where('status', '!=', 'declined')->first();
         if ($membership) {
@@ -105,7 +105,7 @@ class TeamController extends Controller
         ]);
     }
 
-    public function acceptInvitation(Request $request, \App\Models\Team $team)
+    public function acceptInvitation(Request $request, Team $team)
     {
         $user = $request->user();
         
@@ -125,7 +125,7 @@ class TeamController extends Controller
         ]);
     }
 
-    public function declineInvitation(Request $request, \App\Models\Team $team)
+    public function declineInvitation(Request $request, Team $team)
     {
         $user = $request->user();
         
@@ -142,7 +142,7 @@ class TeamController extends Controller
         ]);
     }
 
-    public function show(\App\Models\Team $team)
+    public function show(Team $team)
     {
         $user = auth()->user();
         $isMember = $team->members()->where('user_id', $user->id)->where('status', 'accepted')->exists();
@@ -198,7 +198,7 @@ class TeamController extends Controller
         ]);
     }
 
-    public function update(Request $request, \App\Models\Team $team)
+    public function update(Request $request, Team $team)
     {
         if ($team->created_by !== auth()->id()) {
             return response()->json(['message' => 'Only owner can update team'], 403);
@@ -217,7 +217,7 @@ class TeamController extends Controller
         ]);
     }
 
-    public function removeMember(Request $request, \App\Models\Team $team, \App\Models\User $user)
+    public function removeMember(Request $request, Team $team, User $user)
     {
         if ($team->created_by !== auth()->id()) {
             return response()->json(['message' => 'Only owner can remove members'], 403);
@@ -240,7 +240,7 @@ class TeamController extends Controller
         return response()->json(['message' => 'Member removed successfully']);
     }
 
-    public function banMember(Request $request, \App\Models\Team $team, \App\Models\User $user)
+    public function banMember(Request $request, Team $team, User $user)
     {
         if ($team->created_by !== auth()->id()) {
             return response()->json(['message' => 'Only owner can ban members'], 403);
@@ -263,7 +263,7 @@ class TeamController extends Controller
         return response()->json(['message' => 'Member banned successfully']);
     }
 
-    public function destroy(Request $request, \App\Models\Team $team)
+    public function destroy(Request $request, Team $team)
     {
         if ($team->created_by !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
