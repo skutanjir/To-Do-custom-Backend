@@ -25,7 +25,7 @@ class CreativeWritingExpert implements ExpertInterface
     {
         $msg = mb_strtolower(trim($message));
         $lang = $context['lang'] ?? 'id';
-        $userName = $context['user'] ?? 'Tuan';
+        $userName = $context['user'] ?? 'Kak';
         $confidence = $this->scoreWritingIntent($msg);
 
         if ($confidence < self::CONFIDENCE_THRESHOLD) {

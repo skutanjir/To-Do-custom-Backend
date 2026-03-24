@@ -459,7 +459,7 @@ class KnowledgeBaseService
             [
                 'topic' => 'science', 'keywords' => ['listrik', 'electricity', 'ohm', 'arus', 'tegangan', 'hambatan'],
                 'question_patterns' => ['hukum ohm', 'apa itu listrik', 'rumus listrik'],
-                'answer_id' => 'Listrik: aliran elektron dalam konduktor. Hukum Ohm: V = I × R (tegangan = arus × hambatan). Daya: P = V × I = I²R = V²/R. Satuan: Volt (tegangan), Ampere (arus), Ohm (hambatan), Watt (daya), kWh (energi). Rangkaian seri: Rtotal = R1 + R2. Rangkaian paralel: 1/Rtotal = 1/R1 + 1/R2. AC (bolak-balik) vs DC (searah).',
+                'answer_id' => 'Listrik: aliran elektron dalam konduktor. Hukum Ohm: V = I × R (tegangan = arus × hambatan). Daya: P = V × I = I²R = V²/R. Sakak: Volt (tegangan), Ampere (arus), Ohm (hambatan), Watt (daya), kWh (energi). Rangkaian seri: Rtotal = R1 + R2. Rangkaian paralel: 1/Rtotal = 1/R1 + 1/R2. AC (bolak-balik) vs DC (searah).',
                 'answer_en' => 'Electricity: flow of electrons through conductors. Ohm\'s Law: V = I × R (voltage = current × resistance). Power: P = V × I = I²R = V²/R. Units: Volt (voltage), Ampere (current), Ohm (resistance), Watt (power), kWh (energy). Series circuit: Rtotal = R1 + R2. Parallel circuit: 1/Rtotal = 1/R1 + 1/R2. AC (alternating) vs DC (direct).',
                 'related' => ['fisika', 'rangkaian', 'energi'], 'difficulty' => 'basic',
             ],

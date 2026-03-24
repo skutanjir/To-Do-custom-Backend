@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * 
@@ -98,37 +99,42 @@ class LocalAiEngine
         // Load personality from memory
         if ($memory) {
             $this->personality = $memory->getPersonality();
-            $this->userName = $this->personality['nickname'] ?? $userName ?? 'Tuan';
+            $this->userName = $this->personality['nickname'] ?? $userName ?? 'Kak';
             $savedLang = $this->personality['preferred_lang'] ?? null;
             if ($savedLang && in_array($savedLang, ['id', 'en', 'jv', 'su', 'bt'])) {
                 $this->lang = $savedLang;
             }
         } else {
-            $this->userName = $userName ?? 'Tuan';
+            $this->userName = $userName ?? 'Kak';
         }
     }
 
     private function checkGpuAvailability(): void
     {
+        // PERF: Cache GPU status for 30s to avoid HTTP call on every request
+        $cached = Cache::get('gpu_device_status');
+        if ($cached !== null) {
+            $this->computeDevice = $cached;
+            return;
+        }
+
         try {
-            // Meningkatkan timeout ke 3 detik dan mencoba 127.0.0.1
-            $response = Http::timeout(3)->get("{$this->gpuEndpoint}/status");
-            
+            $response = Http::timeout(2)->get("{$this->gpuEndpoint}/status");
+
             if ($response->successful()) {
                 $data = $response->json();
-                Log::info("Jarvis GPU Heartbeat: ", $data);
-                
-                // Cek apakah device adalah 'cuda' (GPU Aktif)
-                if (($data['device'] ?? '') === 'cuda') {
-                    $this->computeDevice = 'gpu';
-                } else {
-                    $this->computeDevice = 'cpu';
-                }
+                Log::info('Jarvis GPU Heartbeat: ', $data);
+
+                $device = (($data['device'] ?? '') === 'cuda') ? 'gpu' : 'cpu';
+                Cache::put('gpu_device_status', $device, now()->addSeconds(30));
+                $this->computeDevice = $device;
             } else {
+                Cache::put('gpu_device_status', 'cpu', now()->addSeconds(30));
                 $this->computeDevice = 'cpu';
             }
         } catch (\Exception $e) {
             Log::warning("Jarvis GPU Sidecar tidak terdeteksi di {$this->gpuEndpoint}. Berpindah ke mode CPU.");
+            Cache::put('gpu_device_status', 'cpu', now()->addSeconds(30));
             $this->computeDevice = 'cpu';
         }
     }
@@ -164,8 +170,8 @@ class LocalAiEngine
             }
             if ($active) {
                 return $this->respond($this->t(
-                    "Baik Tuan, sesi dibatalkan. Ada lagi yang bisa saya bantu?",
-                    "Alright Sir, session cancelled. Is there anything else I can help with?"
+                    "Baik Kak, sesi dibatalkan. Ada lagi yang bisa saya bantu?",
+                    "Alright Hi, session cancelled. Is there anything else I can help with?"
                 ));
             }
         }
@@ -589,8 +595,8 @@ class LocalAiEngine
 
         if ($this->matchesAny($msg, ['siapa pembuatmu','who created you','developer','pembuat'])) {
             return $this->respond($this->t(
-                "Saya dikembangkan sebagai asisten pribadi cerdas Anda, Tuan. Fokus saya adalah membantu Anda tetap produktif!",
-                "I was developed to be your intelligent personal assistant, Tuan. My focus is to help you stay productive!"
+                "Saya dikembangkan sebagai asisten pribadi cerdas Anda, Kak. Fokus saya adalah membantu Anda tetap produktif!",
+                "I was developed to be your intelligent personal assistant, Kak. My focus is to help you stay productive!"
             ));
         }
 
@@ -970,17 +976,17 @@ class LocalAiEngine
             $interests = $this->memory ? $this->memory->recallFact('interests') : null;
             $work = $this->memory ? $this->memory->recallFact('workplace') : null;
             
-            $text = $name ? "Tuan adalah {$name}. " : "Tuan adalah tuan saya yang bijaksana. ";
-            if ($interests) $text .= "Tuan tertarik pada " . implode(', ', (array)$interests) . ". ";
-            if ($work) $text .= "Tuan bekerja/sekolah di {$work}. ";
-            $text .= "Ada hal lain yang ingin Tuan diskusikan?";
+            $text = $name ? "Kak adalah {$name}. " : "Kak adalah kak saya yang bijaksana. ";
+            if ($interests) $text .= "Kak tertarik pada " . implode(', ', (array)$interests) . ". ";
+            if ($work) $text .= "Kak bekerja/sekolah di {$work}. ";
+            $text .= "Ada hal lain yang ingin Kak diskusikan?";
             
             return $this->respond($this->t($text, $text), null, ['stats', 'focus_mode']);
         }
 
         if (str_contains($msg, 'siapa kamu') || str_contains($msg, 'jarvis')) {
             return $this->respond($this->t(
-                "Saya adalah Jarvis, asisten AI Tuan. Saya di sini untuk menjaga agar hidup Tuan tetap teratur dan produktif.",
+                "Saya adalah Jarvis, asisten AI Kak. Saya di sini untuk menjaga agar hidup Kak tetap teratur dan produktif.",
                 "I am Jarvis, your AI assistant. I am here to ensure your life remains organized and productive."
             ), null, ['help', 'motivation']);
         }
@@ -991,12 +997,12 @@ class LocalAiEngine
                 "Cobalah teknik Pomodoro untuk konsentrasi tinggi.",
                 "Selesaikan tugas tersulit di pagi hari (Eat the Frog).",
                 "Jangan lupa beristirahat setiap 90 menit kerja.",
-                "Tuliskan 3 target utama Tuan untuk hari ini."
+                "Tuliskan 3 target utama Kak untuk hari ini."
             ];
             $tip = $tips[array_rand($tips)];
             return $this->respond($this->t(
-                "Tentu, Tuan. Satu saran untuk hari ini: {$tip}",
-                "Certainly, Sir. One piece of advice for today: {$tip}"
+                "Tentu, Kak. Satu saran untuk hari ini: {$tip}",
+                "Certainly,. One piece of advice for today: {$tip}"
             ), null, ['daily_planner', 'pomodoro']);
         }
 
@@ -1007,8 +1013,8 @@ class LocalAiEngine
             if (!empty($extracted)) {
                 if ($this->memory) $this->memory->rememberFact(Str::slug($extracted), $extracted);
                 return $this->respond($this->t(
-                    "Saya akan mengingat hal itu dengan baik, Tuan: \"{$extracted}\".",
-                    "I will remember that carefully, Sir: \"{$extracted}\"."
+                    "Saya akan mengingat hal itu dengan baik, Kak: \"{$extracted}\".",
+                    "I will remember that carefully: \"{$extracted}\"."
                 ), null, ['list_tasks', 'stats']);
             }
         }
@@ -1016,8 +1022,8 @@ class LocalAiEngine
         //  4. General Social / Small Talk 
         if ($sentiment['polarity'] === 'positive' && (str_contains($msg, 'bagus') || str_contains($msg, 'terima kasih'))) {
             $resp = $this->t(
-                "Sama-sama, Tuan. Senang bisa melayani Anda. Apa ada hal lain yang bisa saya bantu?",
-                "You're very welcome, Sir. It's a pleasure to serve you. Anything else I can assist with?"
+                "Sama-sama, Kak. Senang bisa melayani Anda. Apa ada hal lain yang bisa saya bantu?",
+                "You're very welcome,. It's a pleasure to serve you. Anything else I can assist with?"
             );
             return $this->respond($resp, null, ['smart_suggest', 'motivation']);
         }
@@ -1025,9 +1031,9 @@ class LocalAiEngine
         // Logic-based construction for curiosity
         if ($sentiment['polarity'] === 'neutral' && mb_strlen($message) > 10) {
              $questions = [
-                 "Menarik sekali. Bagaimana Tuan melihat hal ini berdampak pada jadwal hari ini?",
+                 "Menarik sekali. Bagaimana Kak melihat hal ini berdampak pada jadwal hari ini?",
                  "Saya mencatat poin itu. Apakah ada tindakan yang perlu saya bantu jadwalkan?",
-                 "Paham, Tuan. Mau bahas hal ini lebih lanjut atau kembali fokus ke daftar tugas?",
+                 "Paham, Kak. Mau bahas hal ini lebih lanjut atau kembali fokus ke daftar tugas?",
              ];
              return $this->respond($questions[array_rand($questions)], null, ['list', 'focus_mode']);
         }
@@ -1089,13 +1095,13 @@ class LocalAiEngine
         // Logic-based construct
         $phrasesId = [
             "Saya masih belajar memahami percakapan kompleks, {$this->userName}.",
-            "Poin yang menarik. Sebagai asisten Tuan, saya ingin tahu lebih lanjut.",
+            "Poin yang menarik. Sebagai asisten Kak, saya ingin tahu lebih lanjut.",
             "Saya merekam ini sebagai masukan untuk pengembangan logika saya.",
         ];
         $questionsId = [
             "Apa ada tugas lain yang bisa saya bantu catat?",
-            "Bagaimana rencana Tuan untuk sisa hari ini?",
-            "Apa ada sesuatu yang sedang mengganggu produktivitas Tuan?",
+            "Bagaimana rencana Kak untuk sisa hari ini?",
+            "Apa ada sesuatu yang sedang mengganggu produktivitas Kak?",
         ];
 
         $pickedPhrase = $phrasesId[array_rand($phrasesId)];
@@ -1563,7 +1569,7 @@ class LocalAiEngine
         if ($formality === 'informal') {
             // Make responses slightly more casual
             $message = str_replace(
-                ['Baik, Tuan.', 'Tentu, Tuan.', 'Siap, Tuan.', 'Sir,'],
+                ['Baik, Kak.', 'Tentu, Kak.', 'Siap, Kak.', 'Sir,'],
                 ['Oke!', 'Siap!', 'Oke!', ''],
                 $message
             );
@@ -2916,8 +2922,8 @@ class LocalAiEngine
             }
             if ($active) {
                 return $this->respond($this->t(
-                    "Baik Tuan, sesi dibatalkan. Ada lagi yang bisa saya bantu?",
-                    "Alright Sir, session cancelled. Is there anything else I can help with?"
+                    "Baik Kak, sesi dibatalkan. Ada lagi yang bisa saya bantu?",
+                    "Alright Hi, session cancelled. Is there anything else I can help with?"
                 ));
             }
         }
@@ -3023,7 +3029,7 @@ class LocalAiEngine
             if ($this->memory) {
                 $this->memory->remember('context', 'creating_task_state', ['step' => 'ask_title', 'data' => $data], now()->addMinutes(10)->toDateTimeString());
             }
-            return $this->respond($this->t("Tugasnya apa namanya, Tuan?", "What is the name of the task, Sir?"), null, null, [
+            return $this->respond($this->t("Tugasnya apa namanya, Kak?", "What is the name of the task?"), null, null, [
                 'session' => ['type' => 'create', 'label' => 'Membuat Tugas Baru', 'current_step' => 1, 'total_steps' => 5]
             ]);
         }
@@ -3183,7 +3189,7 @@ class LocalAiEngine
 
             case 'pick_field':
                 $field = $this->resolveEditField($msg);
-                if (!$field) return $this->respond($this->t("Pilih salah satu Tuan: Judul, Tanggal, atau Prioritas.", "Please pick one: Title, Date, or Priority."), null, null, [
+                if (!$field) return $this->respond($this->t("Pilih salah satu Kak: Judul, Tanggal, atau Prioritas.", "Please pick one: Title, Date, or Priority."), null, null, [
                     'session' => ['type' => 'edit', 'label' => 'Mengubah Tugas', 'current_step' => 2, 'total_steps' => 3]
                 ]);
                 
@@ -3191,7 +3197,7 @@ class LocalAiEngine
                 $this->memory->remember('context', 'editing_task_state', ['step' => 'ask_value', 'data' => $data], now()->addMinutes(10)->toDateTimeString());
                 
                 $prompt = match($field) {
-                    'judul'    => "Judul barunya apa, Tuan?",
+                    'judul'    => "Judul barunya apa, Kak?",
                     'deadline' => "Mau diubah ke kapan?",
                     'priority' => "Prioritas barunya apa? (Tinggi / Sedang / Rendah)",
                 };
@@ -3232,7 +3238,7 @@ class LocalAiEngine
                 }
 
                 return $this->respond(
-                    $this->t("Baik Tuan. {$confirmMsg}", "Alright Sir. {$confirmMsg}"),
+                    $this->t("Baik Kak. {$confirmMsg}", "Alright. {$confirmMsg}"),
                     ['type' => 'update_task', 'data' => $updateData]
                 );
         }
@@ -3256,7 +3262,7 @@ class LocalAiEngine
             
             $this->memory->remember('context', 'deleting_task_state', ['step' => 'confirm', 'task_id' => $task->id, 'judul' => $task->judul], now()->addMinutes(5)->toDateTimeString());
             return $this->respond($this->t(
-                "Apakah Tuan yakin ingin menghapus tugas \"{$task->judul}\"? (Ya / Tidak)",
+                "Apakah Kak yakin ingin menghapus tugas \"{$task->judul}\"? (Ya / Tidak)",
                 "Are you sure you want to delete \"{$task->judul}\"? (Yes / No)"
             ), null, ['Ya', 'Tidak'], [
                 'session' => ['type' => 'delete', 'current_step' => 2, 'total_steps' => 2]
@@ -3267,7 +3273,7 @@ class LocalAiEngine
             $this->memory->forget('context', 'deleting_task_state');
             if ($this->matchesAny($msg, ['ya', 'yes', 'boleh', 'oke', 'lanjut', 'hajar'])) {
                 return $this->respond(
-                    $this->t("Tugas \"{$state['judul']}\" dipun hapus, Tuan.", "Task \"{$state['judul']}\" deleted, Sir."),
+                    $this->t("Tugas \"{$state['judul']}\" dipun hapus, Kak.", "Task \"{$state['judul']}\" deleted,."),
                     ['type' => 'delete_task', 'data' => ['id' => $state['task_id']]]
                 );
             }
@@ -3398,7 +3404,7 @@ class LocalAiEngine
         $this->memory->remember('context', 'deleting_task_state', ['step' => 'confirm', 'task_id' => $match->id, 'judul' => $match->judul], now()->addMinutes(5)->toDateTimeString());
         return $this->respond(
             $this->t(
-                "Apakah Tuan yakin ingin menghapus tugas \"{$match->judul}\"? (Ya / Tidak)",
+                "Apakah Kak yakin ingin menghapus tugas \"{$match->judul}\"? (Ya / Tidak)",
                 "Are you sure you want to delete \"{$match->judul}\"? (Yes / No)"
             ),
             null,
@@ -4347,28 +4353,28 @@ class LocalAiEngine
             return 'Good evening';
         }
         if ($this->lang === 'jv') {
-            if ($hour < 11)  return 'Sugeng enjing, Tuan';
-            if ($hour < 15)  return 'Sugeng siang, Tuan';
-            if ($hour < 18)  return 'Sugeng sonten, Tuan';
-            return 'Sugeng dalu, Tuan';
+            if ($hour < 11)  return 'Sugeng enjing, Kak';
+            if ($hour < 15)  return 'Sugeng siang, Kak';
+            if ($hour < 18)  return 'Sugeng sonten, Kak';
+            return 'Sugeng dalu, Kak';
         }
         if ($this->lang === 'su') {
-            if ($hour < 11)  return 'Wilujeng enjing, Tuan';
-            if ($hour < 15)  return 'Wilujeng siang, Tuan';
-            if ($hour < 18)  return 'Wilujeng sonten, Tuan';
-            return 'Wilujeng wengi, Tuan';
+            if ($hour < 11)  return 'Wilujeng enjing, Kak';
+            if ($hour < 15)  return 'Wilujeng siang, Kak';
+            if ($hour < 18)  return 'Wilujeng sonten, Kak';
+            return 'Wilujeng wengi, Kak';
         }
         if ($this->lang === 'bt') {
-            if ($hour < 11) return 'Selamet pagi, Tuan';
-            if ($hour < 15) return 'Selamet siang, Tuan';
-            if ($hour < 18) return 'Selamet sore, Tuan';
-            return 'Selamet malem, Tuan';
+            if ($hour < 11) return 'Selamet pagi, Kak';
+            if ($hour < 15) return 'Selamet siang, Kak';
+            if ($hour < 18) return 'Selamet sore, Kak';
+            return 'Selamet malem, Kak';
         }
         // Indonesian default
-        if ($hour < 11) return 'Selamat pagi Tuan';
-        if ($hour < 15) return 'Selamat siang Tuan';
-        if ($hour < 18) return 'Selamat sore Tuan';
-        return 'Selamat malam Tuan';
+        if ($hour < 11) return 'Selamat pagi Kak';
+        if ($hour < 15) return 'Selamat siang Kak';
+        if ($hour < 18) return 'Selamat sore Kak';
+        return 'Selamat malam Kak';
     }
 
     // 
@@ -4658,7 +4664,7 @@ class LocalAiEngine
             'set_goal'          => [' Buat Goal',          ' Set Goal'],
             'check_goal'        => [' Lihat Goal',         ' My Goals'],
             'reschedule_overdue'=> [' Jadwal Ulang',       ' Reschedule Overdue'],
-            'help'              => [' Bantuan',             ' Help'],
+            'help'              => [' Bankak',             ' Help'],
             'motivation'        => [' Motivasi',           ' Motivation'],
             'recall_memory'     => [' Apa yang kau ingat?', ' What do you remember?'],
             'memory_stats'      => [' Status Memori',      ' Memory Stats'],
@@ -4869,8 +4875,8 @@ class LocalAiEngine
         if ($this->matchesAny($msg, ['lupakan nama', 'forget my name', 'forget nickname', 'hapus nama'])) {
             $this->memory->forget('preference', 'nickname');
             return $this->respond($this->t(
-                "Nama panggilan sudah saya lupakan. Saya akan memanggil Anda 'Tuan' lagi.",
-                "Nickname forgotten. I'll call you 'Tuan' again."
+                "Nama panggilan sudah saya lupakan. Saya akan memanggil Anda 'Kak' lagi.",
+                "Nickname forgotten. I'll call you 'Kak' again."
             ), null, ['remember_preference', 'help']);
         }
 

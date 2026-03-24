@@ -3,7 +3,7 @@ import sys
 import json
 import torch
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer, util
 
@@ -32,10 +32,32 @@ except Exception as e:
 print("Model loaded successfully.")
 
 
+MAX_TASKS = 500
+MAX_TASK_LENGTH = 2000
+MAX_QUERY_LENGTH = 1000
+
+
 class SearchRequest(BaseModel):
     query: str
     tasks: List[str]
     threshold: Optional[float] = 0.3
+
+    @field_validator('query')
+    @classmethod
+    def validate_query(cls, v):
+        if len(v) > MAX_QUERY_LENGTH:
+            raise ValueError(f'Query exceeds max length of {MAX_QUERY_LENGTH} characters')
+        return v
+
+    @field_validator('tasks')
+    @classmethod
+    def validate_tasks(cls, v):
+        if len(v) > MAX_TASKS:
+            raise ValueError(f'Tasks list exceeds max of {MAX_TASKS} items')
+        for i, task in enumerate(v):
+            if len(task) > MAX_TASK_LENGTH:
+                v[i] = task[:MAX_TASK_LENGTH]
+        return v
 
 
 @app.get("/status")

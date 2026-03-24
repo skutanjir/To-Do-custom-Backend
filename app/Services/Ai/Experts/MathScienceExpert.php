@@ -383,7 +383,7 @@ class MathScienceExpert implements ExpertInterface
                 'en' => " **Compound Interest**: A = P(1 + r/n)^(nt)\nP = principal, r = interest rate, n = compounds per year, t = years",
             ],
             'kecepatan|speed|velocity' => [
-                'id' => " **Kecepatan**: v = s / t (jarak / waktu)\n**Percepatan**: a = Δv / Δt\n**Jarak**: s = v × t\nSatuan SI: m/s, m/s²",
+                'id' => " **Kecepatan**: v = s / t (jarak / waktu)\n**Percepatan**: a = Δv / Δt\n**Jarak**: s = v × t\nSakak SI: m/s, m/s²",
                 'en' => " **Speed**: v = s / t (distance / time)\n**Acceleration**: a = Δv / Δt\n**Distance**: s = v × t\nSI units: m/s, m/s²",
             ],
         ];
@@ -473,7 +473,7 @@ class MathScienceExpert implements ExpertInterface
                 'en' => " **Periodic Table** organized by Dmitri Mendeleev (1869). Groups 118 elements by atomic number. Rows = Periods (energy levels), Columns = Groups (similar properties). Group 1: alkali metals, Group 18: noble gases. Periodic trends: atomic radius, electronegativity, ionization energy.",
             ],
             'listrik|electricity|arus|current' => [
-                'id' => " **Listrik** adalah aliran elektron. Hukum Ohm: V = I × R (tegangan = arus × hambatan). Satuan: Volt (V), Ampere (A), Ohm (Ω). Daya: P = V × I (Watt). AC = arus bolak-balik (PLN), DC = arus searah (baterai).",
+                'id' => " **Listrik** adalah aliran elektron. Hukum Ohm: V = I × R (tegangan = arus × hambatan). Sakak: Volt (V), Ampere (A), Ohm (Ω). Daya: P = V × I (Watt). AC = arus bolak-balik (PLN), DC = arus searah (baterai).",
                 'en' => " **Electricity** is the flow of electrons. Ohm's Law: V = I × R (voltage = current × resistance). Units: Volt (V), Ampere (A), Ohm (Ω). Power: P = V × I (Watts). AC = alternating current (grid), DC = direct current (battery).",
             ],
             'termodinamika|thermodynamics' => [

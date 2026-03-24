@@ -2,6 +2,7 @@
 // app/Http/Controllers/AiHistoryController.php
 namespace App\Http\Controllers\Ai;
 
+use App\Http\Controllers\Controller;
 use App\Models\AiChat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,8 +30,7 @@ class AiHistoryController extends Controller
             })
             ->withCount('messages')
             ->orderBy('updated_at', 'desc')
-            ->take(50)
-            ->get();
+            ->paginate(20);
 
         return response()->json($chats);
     }
@@ -41,7 +41,7 @@ class AiHistoryController extends Controller
 
         return response()->json([
             'chat' => $aiChat,
-            'messages' => $aiChat->messages()->orderBy('created_at', 'asc')->get()
+            'messages' => $aiChat->messages()->orderBy('created_at', 'asc')->paginate(50)
         ]);
     }
 

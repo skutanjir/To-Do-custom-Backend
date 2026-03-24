@@ -11,23 +11,27 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Public routes (authentication only)
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+});
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
 
     // ── Todo CRUD (requires authentication) ─────────────────────────
     Route::apiResource('todos', TodoController::class);
-    Route::apiResource('todo-states', \App\Http\Controllers\TodoStateController::class);
+    Route::apiResource('todo-states', \App\Http\Controllers\Task\TodoStateController::class);
 
-    // ── AI Hub & Intelligence ────────────────────────────────────────
-    Route::post('/ai/chat', [AiChatController::class, 'chat']);
-    Route::post('/ai/stream', [AiChatController::class, 'stream']);
-    Route::post('/ai/tts', [AiChatController::class, 'tts']);
-    Route::match(['get','post'], '/ai/voice-preference', [AiChatController::class, 'voicePreference']);
-    Route::post('/ai/compute-mode', [AiChatController::class, 'toggleComputeMode']);
-    Route::get('/ai/analytics/report', [AiChatController::class, 'generateAnalyticsReport']);
+    // ── AI Hub & Intelligence (rate limited) ────────────────────────
+    Route::middleware('throttle:30,1')->group(function () {
+        Route::post('/ai/chat', [AiChatController::class, 'chat']);
+        Route::post('/ai/stream', [AiChatController::class, 'stream']);
+        Route::post('/ai/tts', [AiChatController::class, 'tts']);
+        Route::match(['get','post'], '/ai/voice-preference', [AiChatController::class, 'voicePreference']);
+        Route::post('/ai/compute-mode', [AiChatController::class, 'toggleComputeMode']);
+        Route::get('/ai/analytics/report', [AiChatController::class, 'generateAnalyticsReport']);
+    });
 
     // AI Experts & Insights (Dashboard Widgets)
     Route::get('/ai/experts/insights', [AiChatController::class, 'expertInsights']);
@@ -69,9 +73,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('notifications/{notification}', [NotificationController::class, 'destroy']);
 
     // ── Industrial Enterprise Layer (v6.0) ──────────────────────────────
-    Route::apiResource('workspaces', \App\Http\Controllers\WorkspaceController::class);
-    Route::apiResource('projects', \App\Http\Controllers\ProjectController::class);
-    Route::apiResource('folders', \App\Http\Controllers\FolderController::class);
+    Route::apiResource('workspaces', \App\Http\Controllers\Workspace\WorkspaceController::class);
+    Route::apiResource('projects', \App\Http\Controllers\Workspace\ProjectController::class);
+    Route::apiResource('folders', \App\Http\Controllers\Workspace\FolderController::class);
     // Route::apiResource('labels', \App\Http\Controllers\TodoLabelController::class); // TODO: Create TodoLabelController when label feature is needed
     
     Route::get('productivity/analytics', [AiChatController::class, 'generateAnalyticsReport']);

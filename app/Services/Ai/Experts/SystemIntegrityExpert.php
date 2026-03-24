@@ -26,7 +26,7 @@ class SystemIntegrityExpert implements ExpertInterface
     {
         $msg = mb_strtolower(trim($message));
         $lang = $context['lang'] ?? 'id';
-        $userName = $context['user'] ?? 'Tuan';
+        $userName = $context['user'] ?? 'Kak';
         $now = Carbon::now();
 
         $confidence = $this->scoreSystemIntent($msg);
@@ -280,7 +280,7 @@ class SystemIntegrityExpert implements ExpertInterface
 
         $suggestions = $lang === 'en'
             ? ['What can you do?', 'System status', 'Help']
-            : ['Bisa apa saja?', 'Status sistem', 'Bantuan'];
+            : ['Bisa apa saja?', 'Status sistem', 'Bankak'];
 
         return ['findings' => $findings, 'suggestions' => $suggestions];
     }

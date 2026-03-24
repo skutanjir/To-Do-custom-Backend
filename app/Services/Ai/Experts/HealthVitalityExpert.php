@@ -24,7 +24,7 @@ class HealthVitalityExpert implements ExpertInterface
     {
         $msg = mb_strtolower(trim($message));
         $lang = $context['lang'] ?? 'id';
-        $userName = $context['user'] ?? 'Tuan';
+        $userName = $context['user'] ?? 'Kak';
         $now = Carbon::now();
 
         $confidence = $this->scoreHealthIntent($msg);

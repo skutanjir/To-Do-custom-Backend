@@ -23,7 +23,7 @@ class MentalLoadExpert implements ExpertInterface
         $loadScore = ($highPriority * 15) + ($overdue * 25);
 
         if ($loadScore > 50) {
-            $findings[] = "Skor beban mental Tuan berada di angka $loadScore (Tinggi).";
+            $findings[] = "Skor beban mental Kak berada di angka $loadScore (Tinggi).";
             $suggestions[] = "Gunakan mode 'Deep Work' untuk fokus pada satu tugas besar.";
             $confidence = 95;
         }

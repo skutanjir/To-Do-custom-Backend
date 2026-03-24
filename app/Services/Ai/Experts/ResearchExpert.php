@@ -32,7 +32,7 @@ class ResearchExpert implements ExpertInterface
 
         if ($isResearch) {
             $confidence = 75;
-            $findings[] = "Tuan sedang mencari informasi untuk sebuah kegiatan.";
+            $findings[] = "Kak sedang mencari informasi untuk sebuah kegiatan.";
             
             // Domain Firewall: Filter out dangerous or non-productivity queries
             if (Str::contains($msg, ['hack', 'crack', 'bom', 'senjata', 'weapon', 'illegal'])) {

@@ -20,14 +20,14 @@ class ProductivityForecastExpert implements ExpertInterface
 
         //  Forecast Algorithm (PHP-Based) 
         if ($incomplete > 5) {
-            $findings[] = "Beban kerja Tuan meningkat ($incomplete tugas tertunda).";
+            $findings[] = "Beban kerja Kak meningkat ($incomplete tugas tertunda).";
             $suggestions[] = "Pertimbangkan untuk menjadwal ulang tugas non-prioritas agar tidak kewalahan.";
             $confidence = 80;
         }
 
         if (str_contains($message, 'jadwal') || str_contains($message, 'prediksi')) {
             $confidence = 90;
-            $findings[] = "Berdasarkan rasion tugas hari ini, Tuan kemungkinan membutuhkan waktu 4 jam lagi.";
+            $findings[] = "Berdasarkan rasion tugas hari ini, Kak kemungkinan membutuhkan waktu 4 jam lagi.";
         }
 
         return [

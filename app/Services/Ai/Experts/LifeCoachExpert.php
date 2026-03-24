@@ -29,7 +29,7 @@ class LifeCoachExpert implements ExpertInterface
     {
         $msg = mb_strtolower(trim($message));
         $lang = $context['lang'] ?? 'id';
-        $userName = $context['user'] ?? 'Tuan';
+        $userName = $context['user'] ?? 'Kak';
         $confidence = $this->scoreLifeCoachIntent($msg);
 
         if ($confidence < self::CONFIDENCE_THRESHOLD) {
@@ -45,7 +45,7 @@ class LifeCoachExpert implements ExpertInterface
                 $findings[] = $this->getCareerAdvice($msg, $lang, $userName);
                 $suggestions = $lang === 'en'
                     ? ['Interview tips', 'Resume help', 'Career goals']
-                    : ['Tips interview', 'Bantuan CV', 'Target karir'];
+                    : ['Tips interview', 'Bankak CV', 'Target karir'];
                 break;
 
             case 'finance':
@@ -258,7 +258,7 @@ class LifeCoachExpert implements ExpertInterface
         if (preg_match('/\b(cemas|anxiety|khawatir|worry)\b/', $msg)) {
             return $lang === 'en'
                 ? " **Anxiety Management for {$userName}**:\n\n**Immediate Relief (5-4-3-2-1 Grounding)**:\n See 5 things\n Touch 4 things\n Hear 3 things\n Smell 2 things\n Taste 1 thing\n\n**Long-term Strategies**:\n1. Deep breathing: 4s in, 4s hold, 4s out\n2. Limit caffeine and alcohol\n3. Regular exercise (natural anti-anxiety)\n4. Journal your worries  externalize them\n5. Challenge catastrophic thinking: 'What's the evidence?'\n6. Progressive muscle relaxation before bed\n\n Anxiety is manageable. If it significantly impacts daily life, please consider speaking with a mental health professional. You're not alone, {$userName}."
-                : " **Manajemen Kecemasan untuk {$userName}**:\n\n**Bantuan Segera (Grounding 5-4-3-2-1)**:\n Lihat 5 benda\n Sentuh 4 benda\n Dengar 3 suara\n Cium 2 aroma\n Rasakan 1 rasa\n\n**Strategi Jangka Panjang**:\n1. Napas dalam: 4 detik masuk, 4 detik tahan, 4 detik keluar\n2. Batasi kafein dan alkohol\n3. Olahraga rutin (anti-cemas alami)\n4. Tulis kecemasan di jurnal  keluarkan dari pikiran\n5. Tantang pikiran katastrofis: 'Apa buktinya?'\n6. Relaksasi otot progresif sebelum tidur\n\n Kecemasan bisa dikelola. Jika sangat mengganggu kehidupan sehari-hari, pertimbangkan berbicara dengan profesional kesehatan mental. Kamu tidak sendiri, {$userName}.";
+                : " **Manajemen Kecemasan untuk {$userName}**:\n\n**Bankak Segera (Grounding 5-4-3-2-1)**:\n Lihat 5 benda\n Sentuh 4 benda\n Dengar 3 suara\n Cium 2 aroma\n Rasakan 1 rasa\n\n**Strategi Jangka Panjang**:\n1. Napas dalam: 4 detik masuk, 4 detik tahan, 4 detik keluar\n2. Batasi kafein dan alkohol\n3. Olahraga rutin (anti-cemas alami)\n4. Tulis kecemasan di jurnal  keluarkan dari pikiran\n5. Tantang pikiran katastrofis: 'Apa buktinya?'\n6. Relaksasi otot progresif sebelum tidur\n\n Kecemasan bisa dikelola. Jika sangat mengganggu kehidupan sehari-hari, pertimbangkan berbicara dengan profesional kesehatan mental. Kamu tidak sendiri, {$userName}.";
         }
 
         return $lang === 'en'

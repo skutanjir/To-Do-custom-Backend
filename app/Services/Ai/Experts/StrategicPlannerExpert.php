@@ -24,7 +24,7 @@ class StrategicPlannerExpert implements ExpertInterface
     {
         $msg = mb_strtolower(trim($message));
         $lang = $context['lang'] ?? 'id';
-        $userName = $context['user'] ?? 'Tuan';
+        $userName = $context['user'] ?? 'Kak';
         $tasks = $context['tasks'] ?? [];
         $now = Carbon::now();
 

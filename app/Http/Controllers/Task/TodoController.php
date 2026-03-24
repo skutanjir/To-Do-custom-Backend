@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Task;
 
+use App\Http\Controllers\Controller;
 use App\Models\Task\Todo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,23 +20,21 @@ class TodoController extends Controller
             $todos = Todo::where(function($query) use ($user, $teamIds) {
                 $query->where('user_id', $user->id)
                       ->orWhereIn('team_id', $teamIds);
-            })->latest()->get();
+            })->latest()->paginate(50);
         } elseif ($deviceId) {
-            $todos = Todo::where('device_id', $deviceId)->whereNull('user_id')->latest()->get();
+            $todos = Todo::where('device_id', $deviceId)->whereNull('user_id')->latest()->paginate(50);
         } else {
             return response()->json(['message' => 'Unauthorized or Device ID required'], 401);
         }
 
-        return response()->json([
-            'todos' => $todos,
-        ]);
+        return response()->json($todos);
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'judul' => 'required|string|max:255',
-            'deskripsi' => 'nullable|string',
+            'deskripsi' => 'nullable|string|max:5000',
             'deadline' => 'nullable|date',
             'priority' => 'nullable|in:high,medium,low',
             'team_id' => 'nullable|exists:teams,id',
@@ -50,9 +49,21 @@ class TodoController extends Controller
             return response()->json(['message' => 'Unauthorized or Device ID required'], 401);
         }
 
+        // Guest cannot create team tasks - login required
+        if ($request->team_id && !$user) {
+            return response()->json(['message' => 'Login diperlukan untuk tugas tim'], 401);
+        }
+
+        // IDOR Protection: Verify team membership before allowing team_id assignment
+        if ($request->team_id && $user) {
+            if (!$user->teams()->where('teams.id', $request->team_id)->exists()) {
+                return response()->json(['message' => 'Anda tidak memiliki akses ke tim ini'], 403);
+            }
+        }
+
         $todo = Todo::create([
-            'judul' => $request->judul,
-            'deskripsi' => $request->deskripsi,
+            'judul' => strip_tags($request->judul),
+            'deskripsi' => $request->deskripsi ? strip_tags($request->deskripsi) : null,
             'deadline' => $request->deadline,
             'priority' => $request->priority ?? 'medium',
             'user_id' => $user ? $user->id : null,

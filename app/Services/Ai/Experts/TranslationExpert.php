@@ -404,7 +404,7 @@ class TranslationExpert implements ExpertInterface
             ['idiom' => 'Besar pasak daripada tiang', 'meaning_id' => 'Pengeluaran lebih besar dari pendapatan', 'meaning_en' => 'Spending more than earning', 'equivalent' => 'Living beyond your means'],
             ['idiom' => 'Seperti air dan minyak', 'meaning_id' => 'Dua hal yang tidak bisa bersatu', 'meaning_en' => 'Two things that cannot unite', 'equivalent' => 'Like oil and water'],
             ['idiom' => 'Ada udang di balik batu', 'meaning_id' => 'Ada maksud tersembunyi', 'meaning_en' => 'There is a hidden agenda', 'equivalent' => "There's more than meets the eye"],
-            ['idiom' => 'Buah jatuh tidak jauh dari pohonnya', 'meaning_id' => 'Anak biasanya mirip orang tuanya', 'meaning_en' => 'Children usually resemble their parents', 'equivalent' => "The apple doesn't fall far from the tree"],
+            ['idiom' => 'Buah jatuh tidak jauh dari pohonnya', 'meaning_id' => 'Anak biasanya mirip orang kakya', 'meaning_en' => 'Children usually resemble their parents', 'equivalent' => "The apple doesn't fall far from the tree"],
             ['idiom' => 'Nasi sudah menjadi bubur', 'meaning_id' => 'Sesuatu yang sudah terjadi tidak bisa diubah', 'meaning_en' => "What's done is done", 'equivalent' => 'No use crying over spilled milk'],
         ];
 

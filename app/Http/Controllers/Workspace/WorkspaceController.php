@@ -3,6 +3,7 @@
 
 namespace App\Http\Controllers\Workspace;
 
+use App\Http\Controllers\Controller;
 use App\Models\Workspace\Workspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,7 +14,7 @@ class WorkspaceController extends Controller
 
     public function index()
     {
-        return Workspace::where('owner_id', Auth::id())->get();
+        return Workspace::where('owner_id', Auth::id())->paginate(20);
     }
 
     public function store(Request $request)

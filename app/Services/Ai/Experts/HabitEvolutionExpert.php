@@ -16,7 +16,7 @@ class HabitEvolutionExpert implements ExpertInterface
         $patterns = $context['habits'] ?? [];
         if (count($patterns) > 3) {
             $findings[] = "Pola kebiasaan baru terdeteksi.";
-            $suggestions[] = "Tuan sering membuat tugas serupa di jam ini. Ingin dijadikan rutin?";
+            $suggestions[] = "Kak sering membuat tugas serupa di jam ini. Ingin dijadikan rutin?";
             $confidence = 60;
         }
 

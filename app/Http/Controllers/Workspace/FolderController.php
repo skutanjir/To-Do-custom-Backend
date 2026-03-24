@@ -3,6 +3,7 @@
 
 namespace App\Http\Controllers\Workspace;
 
+use App\Http\Controllers\Controller;
 use App\Models\Workspace\Folder;
 use App\Models\Workspace\Project;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ class FolderController extends Controller
                 $q->where('user_id', Auth::id());
             });
         }
-        return $query->get();
+        return $query->paginate(20);
     }
 
     public function store(Request $request)

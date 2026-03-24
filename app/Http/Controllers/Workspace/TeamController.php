@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Workspace;
 
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
 use App\Models\System\Notification;
 use App\Models\Workspace\Team;
 use App\Models\User;
@@ -24,8 +25,8 @@ class TeamController extends Controller
             }])
             ->get()
             ->map(function($team) {
-                $totalTasks = $team->todos_count ?? $team->todos()->count();
-                $completedTasks = $team->completed_todos_count ?? $team->todos()->where('is_completed', true)->count();
+                $totalTasks = $team->todos_count;
+                $completedTasks = $team->completed_todos_count;
                 $team->progress = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
                 return $team;
             });
@@ -79,8 +80,8 @@ class TeamController extends Controller
 
         $userToInvite = \App\Models\User::where('email', $request->email)->first();
 
-        if ($team->members()->where('user_id', $userToInvite->id)->where('status', '!=', 'declined')->exists()) {
-            $membership = $team->members()->where('user_id', $userToInvite->id)->first();
+        $membership = $team->members()->where('user_id', $userToInvite->id)->where('status', '!=', 'declined')->first();
+        if ($membership) {
             if ($membership->pivot->status === 'banned') {
                 return response()->json(['message' => 'This user is banned from this team'], 422);
             }
